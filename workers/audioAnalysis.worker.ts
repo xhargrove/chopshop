@@ -178,7 +178,7 @@ const detectBpmFallback = (samples: Float32Array, sampleRate: number): { bpm: nu
   return { bpm, confidence: clampConfidence(totalScore > 0 ? bestScore / totalScore : 0) };
 };
 
-const tryEssentiaBpm = async (samples: Float32Array): Promise<{ bpm: number; confidence: number } | null> => {
+const loadEssentiaInstance = async (): Promise<object | null> => {
   try {
     const [coreModule, wasmModule] = await Promise.all([
       import("essentia.js/dist/essentia.js-core.es.js"),
@@ -193,7 +193,20 @@ const tryEssentiaBpm = async (samples: Float32Array): Promise<{ bpm: number; con
       return null;
     }
 
-    const instance = Reflect.construct(moduleValue.Essentia, [moduleValue.EssentiaWASM]);
+    return Reflect.construct(moduleValue.Essentia, [moduleValue.EssentiaWASM]);
+  } catch {
+    return null;
+  }
+};
+
+const tryEssentiaBpm = async (samples: Float32Array): Promise<{ bpm: number; confidence: number } | null> => {
+  try {
+    const instance = await loadEssentiaInstance();
+
+    if (!instance) {
+      return null;
+    }
+
     const arrayToVector = Reflect.get(instance, "arrayToVector");
     const rhythmExtractor = Reflect.get(instance, "RhythmExtractor2013");
 
@@ -212,6 +225,52 @@ const tryEssentiaBpm = async (samples: Float32Array): Promise<{ bpm: number; con
     const confidence = getNumber(result, "confidence");
 
     return bpm ? { bpm: roundBpm(bpm), confidence: clampConfidence(confidence ?? 0.4) } : null;
+  } catch {
+    return null;
+  }
+};
+
+const normalizeEssentiaScale = (scale: string): "major" | "minor" | null => {
+  const normalizedScale = scale.toLowerCase();
+
+  if (normalizedScale.includes("major")) {
+    return "major";
+  }
+
+  if (normalizedScale.includes("minor")) {
+    return "minor";
+  }
+
+  return null;
+};
+
+const tryEssentiaKey = async (samples: Float32Array, sampleRate: number): Promise<{ key: string; confidence: number } | null> => {
+  try {
+    const instance = await loadEssentiaInstance();
+
+    if (!instance) {
+      return null;
+    }
+
+    const arrayToVector = Reflect.get(instance, "arrayToVector");
+    const keyExtractor = Reflect.get(instance, "KeyExtractor");
+
+    if (typeof arrayToVector !== "function" || typeof keyExtractor !== "function") {
+      return null;
+    }
+
+    const vector = Reflect.apply(arrayToVector, instance, [samples]);
+    const result = Reflect.apply(keyExtractor, instance, [vector, true, 4096, 4096, 12, 3500, 25, 0.2, "bgate", sampleRate]);
+
+    if (!isRecord(result) || typeof result.key !== "string" || typeof result.scale !== "string") {
+      return null;
+    }
+
+    const scale = normalizeEssentiaScale(result.scale);
+    const camelotKey = scale ? CAMELOT_MAP[`${result.key} ${scale}`] : null;
+    const confidence = getNumber(result, "strength") ?? getNumber(result, "confidence") ?? 0.4;
+
+    return camelotKey && VALID_CAMELOT_VALUES.has(camelotKey) ? { key: camelotKey, confidence: clampConfidence(confidence) } : null;
   } catch {
     return null;
   }
@@ -305,7 +364,7 @@ const handleAnalysis = async (message: Exclude<WorkerInMessage, { type: "CANCEL"
     }
 
     postWorkerResponse({ type: "PROGRESS", stage: "key", percent: ANALYSIS_PROGRESS_HALF });
-    const keyResult = detectKeyFallback(pcmAudio.samples, pcmAudio.sampleRate);
+    const keyResult = (await tryEssentiaKey(pcmAudio.samples, pcmAudio.sampleRate)) ?? detectKeyFallback(pcmAudio.samples, pcmAudio.sampleRate);
 
     if (cancelled) {
       postWorkerResponse({ type: "CANCELLED" });
