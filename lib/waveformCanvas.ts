@@ -1,4 +1,9 @@
 import {
+  BEAT_GRID_BAR_COLOR,
+  BEAT_GRID_BEAT_COLOR,
+  BEAT_GRID_LABEL_FONT_SIZE_PX,
+  BEAT_GRID_LABEL_Y_PX,
+  BEAT_GRID_PHRASE_COLOR,
   CUE_BADGE_SIZE_PX,
   CUE_LINE_DASH_PX,
   CUE_LINE_GAP_PX,
@@ -10,6 +15,7 @@ import {
   REGION_LABEL_X_OFFSET_PX,
   REGION_LABEL_Y_OFFSET_PX,
 } from "@/lib/constants";
+import { getNearestBeatIndex } from "@/lib/beatGrid";
 import type { CuePoint, WaveformRegion } from "@/types/audio";
 
 interface RegionBounds {
@@ -125,6 +131,39 @@ export const drawCueCanvas = (
       context.fillRect(x - CUE_BADGE_SIZE_PX / 2, CUE_MARKER_SIZE_PX * 2, CUE_BADGE_SIZE_PX, CUE_BADGE_SIZE_PX);
       context.fillStyle = DESIGN_COLORS.textPrimary;
       context.fillText(String(cuePoint.hotkey), x, CUE_MARKER_SIZE_PX * 2 + CUE_BADGE_SIZE_PX / 2);
+    }
+  });
+};
+
+export const drawBeatGridCanvas = (
+  context: CanvasRenderingContext2D,
+  beatPositions: readonly number[],
+  bpm: number,
+  beatOffset: number,
+  scrollOffsetSeconds: number,
+  secondsPerPixel: number,
+  heightPx: number,
+): void => {
+  context.font = `${BEAT_GRID_LABEL_FONT_SIZE_PX}px var(--font-dm-mono), monospace`;
+  context.textAlign = "left";
+  context.textBaseline = "top";
+
+  beatPositions.forEach((beatPosition) => {
+    const beatIndex = getNearestBeatIndex(beatPosition, bpm, beatOffset);
+    const x = (beatPosition - scrollOffsetSeconds) / secondsPerPixel;
+    const isPhrase = beatIndex % 32 === 0;
+    const isBar = beatIndex % 4 === 0;
+
+    context.strokeStyle = isPhrase ? BEAT_GRID_PHRASE_COLOR : isBar ? BEAT_GRID_BAR_COLOR : BEAT_GRID_BEAT_COLOR;
+    context.lineWidth = 1;
+    context.beginPath();
+    context.moveTo(x, 0);
+    context.lineTo(x, heightPx);
+    context.stroke();
+
+    if (isBar) {
+      context.fillStyle = DESIGN_COLORS.textMuted;
+      context.fillText(String(beatIndex / 4 + 1), x + 2, BEAT_GRID_LABEL_Y_PX);
     }
   });
 };
