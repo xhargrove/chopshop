@@ -44,10 +44,24 @@ export const LONG_TIME_SECONDS_PAD_LENGTH = 2;
 export const DEFAULT_BEATS_PER_BAR = 4;
 export const DEFAULT_SNAP_DIVISION = 4;
 export const BPM_DECIMALS = 2;
+export const MIN_BPM = 60;
+export const MAX_BPM = 220;
+export const LOW_CONFIDENCE_THRESHOLD = 0.5;
 export const FILE_SIZE_DECIMALS = 1;
 export const BYTES_PER_KILOBYTE = 1024;
 export const EDITOR_EXTEND_BAR_OPTIONS = [-4, -1, 1, 4] as const;
 export const EDITOR_TRIM_BAR_OPTIONS = [8, 16, 32] as const;
+export const DEFAULT_BEAT_OFFSET_SECONDS = 0;
+export const MAX_BEAT_GRID_POINTS = 1024;
+export const DEFAULT_BARS_PER_PHRASE = 8;
+export const MIN_BEAT_GRID_SPACING_PX = 4;
+export const BEAT_GRID_LABEL_FONT_SIZE_PX = 10;
+export const BEAT_GRID_LABEL_Y_PX = 10;
+export const BEAT_GRID_TAP_RESET_MS = 2000;
+export const BEAT_OFFSET_NUDGE_SECONDS = 0.01;
+export const ANALYSIS_PROGRESS_COMPLETE = 100;
+export const ANALYSIS_PROGRESS_HALF = 50;
+export const ANALYSIS_PROGRESS_START = 0;
 
 export const WAVEFORM_HEIGHT = 120;
 export const WAVEFORM_CURSOR_WIDTH = 2;
@@ -107,3 +121,33 @@ export const REGION_LABELS = {
 
 export const CUE_COLORS = ["#FF3D00", "#00E5FF", "#69FF47", "#FFD600", "#B388FF", "#FF5C8A", "#64FFDA", "#FFAB40"] as const;
 export const CUE_COLOR_DOT_CLASSES = ["bg-cue-1", "bg-cue-2", "bg-cue-3", "bg-cue-4", "bg-cue-5", "bg-cue-6", "bg-cue-7", "bg-cue-8"] as const;
+
+// PHASE 3 CHANGE: Key detection stores validated Camelot notation from detected tonal key/scale.
+export const CAMELOT_MAP: Record<string, string> = {
+  "C major": "8B",
+  "G major": "9B",
+  "D major": "10B",
+  "A major": "11B",
+  "E major": "12B",
+  "B major": "1B",
+  "F# major": "2B",
+  "Db major": "3B",
+  "Ab major": "4B",
+  "Eb major": "5B",
+  "Bb major": "6B",
+  "F major": "7B",
+  "A minor": "8A",
+  "E minor": "9A",
+  "B minor": "10A",
+  "F# minor": "11A",
+  "C# minor": "12A",
+  "G# minor": "1A",
+  "D# minor": "2A",
+  "Bb minor": "3A",
+  "F minor": "4A",
+  "C minor": "5A",
+  "G minor": "6A",
+  "D minor": "7A",
+};
+
+export const VALID_CAMELOT_VALUES = new Set(Object.values(CAMELOT_MAP));
