@@ -1,0 +1,143 @@
+"use client";
+
+import WaveSurfer from "wavesurfer.js";
+import { useCallback, useEffect, useRef, useState, type WheelEvent } from "react";
+
+import {
+  DESIGN_COLORS,
+  WAVEFORM_CURSOR_WIDTH,
+  WAVEFORM_HEIGHT,
+  WAVEFORM_MAX_PX_PER_SECOND,
+  WAVEFORM_MIN_PX_PER_SECOND,
+  WAVEFORM_SCROLL_ZOOM_STEP,
+  WAVEFORM_SYNC_TOLERANCE_SECONDS,
+} from "@/lib/constants";
+import { formatTime } from "@/lib/time";
+
+interface WaveformDisplayProps {
+  audioUrl: string;
+  currentTime: number;
+  duration: number;
+  onSeek: (seconds: number) => void;
+}
+
+const clamp = (value: number, minimum: number, maximum: number): number => Math.min(Math.max(value, minimum), maximum);
+
+const getErrorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
+export function WaveformDisplay({ audioUrl, currentTime, duration, onSeek }: WaveformDisplayProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const wavesurferRef = useRef<WaveSurfer | null>(null);
+  const currentTimeRef = useRef(currentTime);
+  const durationRef = useRef(duration);
+  const zoomRef = useRef(WAVEFORM_MIN_PX_PER_SECOND);
+  const [isReady, setIsReady] = useState(false);
+  const [displayTime, setDisplayTime] = useState(currentTime);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    currentTimeRef.current = currentTime;
+    durationRef.current = duration;
+  }, [currentTime, duration]);
+
+  useEffect(() => {
+    const wavesurfer = wavesurferRef.current;
+
+    if (!wavesurfer || !isReady) {
+      return;
+    }
+
+    if (Math.abs(displayTime - currentTime) <= WAVEFORM_SYNC_TOLERANCE_SECONDS) {
+      return;
+    }
+
+    wavesurfer.setTime(currentTime);
+    setDisplayTime(currentTime);
+  }, [currentTime, displayTime, isReady]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    setIsReady(false);
+    setError(null);
+
+    const wavesurfer = WaveSurfer.create({
+      container,
+      url: audioUrl,
+      waveColor: DESIGN_COLORS.border,
+      progressColor: DESIGN_COLORS.accent,
+      cursorColor: DESIGN_COLORS.accent,
+      cursorWidth: WAVEFORM_CURSOR_WIDTH,
+      height: WAVEFORM_HEIGHT,
+      normalize: true,
+      backend: "WebAudio",
+    });
+
+    wavesurferRef.current = wavesurfer;
+
+    const unsubscribeReady = wavesurfer.on("ready", (readyDuration: number) => {
+      durationRef.current = readyDuration;
+      setDisplayTime(currentTimeRef.current);
+      setIsReady(true);
+    });
+
+    const unsubscribeError = wavesurfer.on("error", (waveformError: unknown) => {
+      setError(getErrorMessage(waveformError));
+      setIsReady(false);
+    });
+
+    const unsubscribeAudioProcess = wavesurfer.on("audioprocess", (processTime: number) => {
+      setDisplayTime(processTime);
+    });
+
+    const unsubscribeSeek = wavesurfer.on("seeking", (nextTime: number) => {
+      setDisplayTime(nextTime);
+      onSeek(nextTime);
+    });
+
+    return () => {
+      unsubscribeReady();
+      unsubscribeError();
+      unsubscribeAudioProcess();
+      unsubscribeSeek();
+      wavesurfer.destroy();
+      wavesurferRef.current = null;
+    };
+  }, [audioUrl, onSeek, containerRef.current]);
+
+  const handleWheel = useCallback((event: WheelEvent<HTMLDivElement>): void => {
+    const wavesurfer = wavesurferRef.current;
+
+    if (!wavesurfer) {
+      return;
+    }
+
+    event.preventDefault();
+    const direction = event.deltaY < 0 ? WAVEFORM_SCROLL_ZOOM_STEP : -WAVEFORM_SCROLL_ZOOM_STEP;
+    const nextZoom = clamp(zoomRef.current + direction, WAVEFORM_MIN_PX_PER_SECOND, WAVEFORM_MAX_PX_PER_SECOND);
+    zoomRef.current = nextZoom;
+    wavesurfer.zoom(nextZoom);
+  }, []);
+
+  return (
+    <section className="rounded-dropzone border border-border bg-surface p-4" aria-label="Audio waveform">
+      <div className="mb-3 flex items-center justify-between font-mono text-sm text-text-muted">
+        <span>{formatTime(displayTime)}</span>
+        <span>{formatTime(duration)}</span>
+      </div>
+      <div className="relative overflow-hidden rounded-dropzone border border-border bg-background" onWheel={handleWheel}>
+        {!isReady ? <div className="absolute inset-0 z-10 animate-pulse bg-surface" aria-hidden="true" /> : null}
+        <div ref={containerRef} className="min-h-[theme(spacing.32)]" />
+      </div>
+      {error ? (
+        <p className="mt-3 rounded-dropzone border border-border bg-background px-3 py-2 font-body text-sm text-accent" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </section>
+  );
+}
