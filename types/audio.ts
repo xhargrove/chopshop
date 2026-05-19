@@ -1,4 +1,5 @@
 export type AudioFormat = "wav" | "mp3" | "aiff" | "flac";
+export type MetadataSource = "auto" | "manual";
 
 export interface AudioFile {
   id: string;
@@ -8,6 +9,7 @@ export interface AudioFile {
   durationSeconds: number;
   bpm: number | null;
   key: string | null;
+  beatOffset: number;
   url: string;
   createdAt: number;
 }
@@ -36,10 +38,15 @@ export interface AudioSession {
   playheadPosition: number;
   isPlaying: boolean;
   zoom: number;
+  bpmSource: MetadataSource | null;
+  keySource: MetadataSource | null;
+  autoBpm: number | null;
+  autoKey: string | null;
 }
 
 export interface EditorSettings {
   snapDivision: 1 | 2 | 4 | null;
   activeRegionId: string | null;
   activeCueId: string | null;
+  beatGridVisible: boolean;
 }

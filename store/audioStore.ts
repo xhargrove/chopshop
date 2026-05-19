@@ -4,8 +4,18 @@ import { nanoid } from "nanoid";
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 
-import { ACCEPTED_AUDIO_EXTENSIONS, AUDIO_EXTENSION_FORMATS, CUE_COLORS, DEFAULT_AUDIO_ZOOM, MAX_HOTKEY_CUE_POINTS } from "@/lib/constants";
-import type { AudioFile, AudioFormat, AudioSession, CuePoint, EditorSettings, WaveformRegion } from "@/types/audio";
+import {
+  ACCEPTED_AUDIO_EXTENSIONS,
+  AUDIO_EXTENSION_FORMATS,
+  CUE_COLORS,
+  DEFAULT_AUDIO_ZOOM,
+  DEFAULT_BEAT_OFFSET_SECONDS,
+  MAX_BPM,
+  MAX_HOTKEY_CUE_POINTS,
+  MIN_BPM,
+  VALID_CAMELOT_VALUES,
+} from "@/lib/constants";
+import type { AudioFile, AudioFormat, AudioSession, CuePoint, EditorSettings, MetadataSource, WaveformRegion } from "@/types/audio";
 
 export interface AudioStore {
   session: AudioSession | null;
@@ -19,6 +29,12 @@ export interface AudioStore {
   setActiveRegion: (id: string | null) => void;
   setActiveCue: (id: string | null) => void;
   setFileBpm: (bpm: number | null) => void;
+  setBpm: (bpm: number, source: MetadataSource) => void;
+  setKey: (key: string, source: MetadataSource) => void;
+  setBeatOffset: (offsetSeconds: number) => void;
+  setBeatGridVisible: (visible: boolean) => void;
+  resetBpmOverride: () => void;
+  resetKeyOverride: () => void;
   addCuePoint: (position: number) => void;
   removeCuePoint: (id: string) => void;
   updateCuePoint: (id: string, updates: Partial<CuePoint>) => void;
@@ -28,7 +44,10 @@ const createInitialEditorSettings = (): EditorSettings => ({
   snapDivision: null,
   activeRegionId: null,
   activeCueId: null,
+  beatGridVisible: true,
 });
+
+const roundBpm = (bpm: number): number => Number(Math.min(Math.max(bpm, MIN_BPM), MAX_BPM).toFixed(2));
 
 const getAudioFormat = (fileName: string): AudioFormat => {
   const normalizedName = fileName.toLowerCase();
@@ -93,6 +112,7 @@ export const useAudioStore = create<AudioStore>()(
         durationSeconds,
         bpm: null,
         key: null,
+        beatOffset: DEFAULT_BEAT_OFFSET_SECONDS,
         url: nextUrl,
         createdAt: Date.now(),
       };
@@ -105,6 +125,10 @@ export const useAudioStore = create<AudioStore>()(
           playheadPosition: 0,
           isPlaying: false,
           zoom: DEFAULT_AUDIO_ZOOM,
+          bpmSource: null,
+          keySource: null,
+          autoBpm: null,
+          autoKey: null,
         };
       });
     },
@@ -155,7 +179,74 @@ export const useAudioStore = create<AudioStore>()(
     setFileBpm: (bpm: number | null): void => {
       set((state) => {
         if (state.session) {
-          state.session.file.bpm = bpm;
+          state.session.file.bpm = bpm === null ? null : roundBpm(bpm);
+          state.session.bpmSource = bpm === null ? null : "manual";
+        }
+      });
+    },
+    setBpm: (bpm: number, source: MetadataSource): void => {
+      set((state) => {
+        if (!state.session) {
+          return;
+        }
+
+        const roundedBpm = roundBpm(bpm);
+
+        if (source === "auto") {
+          state.session.autoBpm = roundedBpm;
+
+          if (state.session.bpmSource === "manual") {
+            return;
+          }
+        }
+
+        state.session.file.bpm = roundedBpm;
+        state.session.bpmSource = source;
+      });
+    },
+    setKey: (key: string, source: MetadataSource): void => {
+      set((state) => {
+        if (!state.session || !VALID_CAMELOT_VALUES.has(key)) {
+          return;
+        }
+
+        if (source === "auto") {
+          state.session.autoKey = key;
+
+          if (state.session.keySource === "manual") {
+            return;
+          }
+        }
+
+        state.session.file.key = key;
+        state.session.keySource = source;
+      });
+    },
+    setBeatOffset: (offsetSeconds: number): void => {
+      set((state) => {
+        if (state.session) {
+          state.session.file.beatOffset = offsetSeconds;
+        }
+      });
+    },
+    setBeatGridVisible: (visible: boolean): void => {
+      set((state) => {
+        state.editorSettings.beatGridVisible = visible;
+      });
+    },
+    resetBpmOverride: (): void => {
+      set((state) => {
+        if (state.session) {
+          state.session.file.bpm = state.session.autoBpm;
+          state.session.bpmSource = state.session.autoBpm === null ? null : "auto";
+        }
+      });
+    },
+    resetKeyOverride: (): void => {
+      set((state) => {
+        if (state.session) {
+          state.session.file.key = state.session.autoKey;
+          state.session.keySource = state.session.autoKey === null ? null : "auto";
         }
       });
     },
