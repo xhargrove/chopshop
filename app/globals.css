@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-background: #080808;
+  --color-surface: #111111;
+  --color-border: #1e1e1e;
+  --color-accent: #ff3d00;
+  --color-text-primary: #f0f0f0;
+  --color-text-muted: #555555;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--color-background);
+}
+
+body {
+  min-height: 100vh;
+  background: var(--color-background);
+  color: var(--color-text-primary);
+}
+
+button,
+input {
+  font: inherit;
+}
