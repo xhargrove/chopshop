@@ -46,8 +46,8 @@ export function SessionView({ session, onClearSession, onPlayheadChange }: Sessi
   const analysis = useSessionAudioAnalysis(session);
 
   useEffect(() => {
-    void load(session.file.url);
-  }, [load, session.file.url]);
+    void load(session.file.url, session.file.format);
+  }, [load, session.file.format, session.file.url]);
 
   useEffect(() => {
     onPlayheadChange(currentTime);

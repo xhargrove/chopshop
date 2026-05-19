@@ -1,7 +1,7 @@
 "use client";
 
 import WaveSurfer from "wavesurfer.js";
-import { useCallback, useEffect, useRef, useState, type WheelEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { WaveformOverlays } from "@/components/waveform/WaveformOverlays";
 import {
@@ -40,6 +40,7 @@ export function WaveformDisplay({
   onCueRenameRequest,
 }: WaveformDisplayProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const waveformFrameRef = useRef<HTMLDivElement | null>(null);
   const wavesurferRef = useRef<WaveSurfer | null>(null);
   const currentTimeRef = useRef(currentTime);
   const durationRef = useRef(duration);
@@ -141,18 +142,32 @@ export function WaveformDisplay({
     };
   }, [containerRef.current]);
 
-  const handleWheel = useCallback((event: WheelEvent<HTMLDivElement>): void => {
-    const wavesurfer = wavesurferRef.current;
+  useEffect(() => {
+    const waveformFrame = waveformFrameRef.current;
 
-    if (!wavesurfer) {
+    if (!waveformFrame) {
       return;
     }
 
-    event.preventDefault();
-    const direction = event.deltaY < 0 ? WAVEFORM_SCROLL_ZOOM_STEP : -WAVEFORM_SCROLL_ZOOM_STEP;
-    const nextZoom = clamp(zoomRef.current + direction, WAVEFORM_MIN_PX_PER_SECOND, WAVEFORM_MAX_PX_PER_SECOND);
-    zoomRef.current = nextZoom;
-    wavesurfer.zoom(nextZoom);
+    const handleWheel = (event: globalThis.WheelEvent): void => {
+      const wavesurfer = wavesurferRef.current;
+
+      if (!wavesurfer) {
+        return;
+      }
+
+      event.preventDefault();
+      const direction = event.deltaY < 0 ? WAVEFORM_SCROLL_ZOOM_STEP : -WAVEFORM_SCROLL_ZOOM_STEP;
+      const nextZoom = clamp(zoomRef.current + direction, WAVEFORM_MIN_PX_PER_SECOND, WAVEFORM_MAX_PX_PER_SECOND);
+      zoomRef.current = nextZoom;
+      wavesurfer.zoom(nextZoom);
+    };
+
+    waveformFrame.addEventListener("wheel", handleWheel, { passive: false });
+
+    return () => {
+      waveformFrame.removeEventListener("wheel", handleWheel);
+    };
   }, []);
 
   const secondsPerPixel = duration > 0 && containerWidthPx > 0 ? duration / containerWidthPx : 0;
@@ -163,7 +178,7 @@ export function WaveformDisplay({
         <span>{formatTime(displayTime)}</span>
         <span>{formatTime(duration)}</span>
       </div>
-      <div className="relative overflow-hidden rounded-dropzone border border-border bg-background" onWheel={handleWheel}>
+      <div ref={waveformFrameRef} className="relative overflow-hidden rounded-dropzone border border-border bg-background">
         {!isReady ? <div className="absolute inset-0 z-10 animate-pulse bg-surface" aria-hidden="true" /> : null}
         {/* PHASE 2 CHANGE: Canvas overlays sit above WaveSurfer so region and cue edits stay synchronized with playback. */}
         <div ref={containerRef} className="min-h-[theme(spacing.32)]" />

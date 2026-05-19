@@ -13,6 +13,7 @@ import {
   MIN_PLAYBACK_RATE,
   MIN_VOLUME,
 } from "@/lib/constants";
+import type { AudioFormat } from "@/types/audio";
 
 interface AudioEngineState {
   isPlaying: boolean;
@@ -24,7 +25,7 @@ interface AudioEngineState {
 
 interface AudioEngineControls {
   rawHowl: MutableRefObject<Howl | null>;
-  load: (url: string) => Promise<void>;
+  load: (url: string, format: AudioFormat) => Promise<void>;
   play: () => void;
   pause: () => void;
   seek: (seconds: number) => void;
@@ -102,7 +103,7 @@ export function useAudioEngine(): AudioEngine {
   }, []);
 
   const load = useCallback(
-    (url: string): Promise<void> =>
+    (url: string, format: AudioFormat): Promise<void> =>
       new Promise((resolve) => {
         stopAnimation();
         howlRef.current?.unload();
@@ -121,6 +122,7 @@ export function useAudioEngine(): AudioEngine {
 
         const howl = new Howl({
           src: [url],
+          format: [format],
           html5: false,
           volume: DEFAULT_VOLUME,
           rate: DEFAULT_PLAYBACK_RATE,
