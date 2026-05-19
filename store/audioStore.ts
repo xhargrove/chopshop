@@ -48,6 +48,7 @@ const createInitialEditorSettings = (): EditorSettings => ({
   activeCueId: null,
   beatGridVisible: true,
   stemModel: DEFAULT_STEM_MODEL,
+  activeTab: "edit",
 });
 
 const roundBpm = (bpm: number): number => Number(Math.min(Math.max(bpm, MIN_BPM), MAX_BPM).toFixed(2));
@@ -126,6 +127,9 @@ export const useAudioStore = create<AudioStore>()(
           file: audioFile,
           regions: [],
           cuePoints: [],
+          bleepRegions: [],
+          transitionCues: [],
+          acapellaSwap: null,
           playheadPosition: 0,
           isPlaying: false,
           zoom: DEFAULT_AUDIO_ZOOM,

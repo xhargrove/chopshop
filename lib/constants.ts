@@ -100,6 +100,16 @@ export const DEFAULT_STEM_MODEL = "4stems";
 export const STEM_TYPES = ["vocals", "drums", "bass", "other", "guitar", "piano"] as const;
 export const STEM_MODEL_TYPES = ["2stems", "4stems", "6stems"] as const;
 export const EXPORT_MP3_BITRATES = [128, 192, 320] as const;
+export const UNDO_STACK_LIMIT = 50;
+export const DEFAULT_TRANSITION_BARS = 4;
+export const DEFAULT_TRANSITION_BEATS = 16;
+export const BLEEP_FREQUENCY_HZ = 1000;
+export const BLEEP_FADE_SECONDS = 0.01;
+export const DUCK_GAIN = 0.25;
+export const DEFAULT_NORMALIZE_PEAK = 0.9;
+export const DEFAULT_SWAP_VOCAL_GAIN = 1;
+export const DEFAULT_SWAP_INSTRUMENTAL_GAIN = 0.85;
+export const MAX_OFFSET_CORRELATION_SECONDS = 5;
 
 export const DESIGN_COLORS = {
   background: "#080808",
