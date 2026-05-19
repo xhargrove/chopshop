@@ -7,6 +7,8 @@ export interface WaveformDisplayProps {
   regions: WaveformRegion[];
   cuePoints: CuePoint[];
   bpm: number | null;
+  beatOffset: number;
+  beatGridVisible: boolean;
   snapEnabled: boolean;
   onSeek: (seconds: number) => void;
   onRegionChange: (region: WaveformRegion) => void;

@@ -6,7 +6,7 @@ import { ANALYSIS_PROGRESS_COMPLETE, ANALYSIS_PROGRESS_START } from "@/lib/const
 import { useAudioStore } from "@/store/audioStore";
 import type { AnalysisState, WorkerInMessage, WorkerOutMessage } from "@/types/audioAnalysis";
 
-interface UseAudioAnalysisReturn extends AnalysisState {
+export interface UseAudioAnalysisReturn extends AnalysisState {
   analyze: (audioBuffer: ArrayBuffer, sampleRate: number) => void;
   cancel: () => void;
   reset: () => void;

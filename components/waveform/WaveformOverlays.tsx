@@ -1,3 +1,4 @@
+import { BeatGridLayer } from "@/components/waveform/BeatGridLayer";
 import { CuePointLayer } from "@/components/waveform/CuePointLayer";
 import { RegionLayer } from "@/components/waveform/RegionLayer";
 import type { CuePoint, WaveformRegion } from "@/types/audio";
@@ -9,6 +10,8 @@ interface WaveformOverlaysProps {
   regions: WaveformRegion[];
   cuePoints: CuePoint[];
   bpm: number | null;
+  beatOffset: number;
+  beatGridVisible: boolean;
   snapEnabled: boolean;
   onRegionChange: (region: WaveformRegion) => void;
   onRegionClick: (regionId: string) => void;
@@ -26,6 +29,8 @@ export function WaveformOverlays({
   regions,
   cuePoints,
   bpm,
+  beatOffset,
+  beatGridVisible,
   snapEnabled,
   onRegionChange,
   onRegionClick,
@@ -41,6 +46,17 @@ export function WaveformOverlays({
 
   return (
     <>
+      {bpm ? (
+        <BeatGridLayer
+          bpm={bpm}
+          beatOffset={beatOffset}
+          durationSeconds={duration}
+          containerWidthPx={containerWidthPx}
+          scrollOffsetSeconds={0}
+          secondsPerPixel={secondsPerPixel}
+          visible={beatGridVisible}
+        />
+      ) : null}
       <RegionLayer
         regions={regions}
         durationSeconds={duration}

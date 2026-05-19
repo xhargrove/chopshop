@@ -27,6 +27,8 @@ export function WaveformDisplay({
   regions,
   cuePoints,
   bpm,
+  beatOffset,
+  beatGridVisible,
   snapEnabled,
   onSeek,
   onRegionChange,
@@ -172,6 +174,8 @@ export function WaveformDisplay({
           regions={regions}
           cuePoints={cuePoints}
           bpm={bpm}
+          beatOffset={beatOffset}
+          beatGridVisible={beatGridVisible}
           snapEnabled={snapEnabled}
           onRegionChange={onRegionChange}
           onRegionClick={onRegionClick}
