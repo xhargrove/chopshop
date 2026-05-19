@@ -37,3 +37,9 @@ export interface AudioSession {
   isPlaying: boolean;
   zoom: number;
 }
+
+export interface EditorSettings {
+  snapDivision: 1 | 2 | 4 | null;
+  activeRegionId: string | null;
+  activeCueId: string | null;
+}

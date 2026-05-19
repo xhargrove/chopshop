@@ -4,17 +4,31 @@ import { nanoid } from "nanoid";
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 
-import { ACCEPTED_AUDIO_EXTENSIONS, AUDIO_EXTENSION_FORMATS, DEFAULT_AUDIO_ZOOM } from "@/lib/constants";
-import type { AudioFile, AudioFormat, AudioSession, CuePoint, WaveformRegion } from "@/types/audio";
+import { ACCEPTED_AUDIO_EXTENSIONS, AUDIO_EXTENSION_FORMATS, CUE_COLORS, DEFAULT_AUDIO_ZOOM, MAX_HOTKEY_CUE_POINTS } from "@/lib/constants";
+import type { AudioFile, AudioFormat, AudioSession, CuePoint, EditorSettings, WaveformRegion } from "@/types/audio";
 
-interface AudioStore {
+export interface AudioStore {
   session: AudioSession | null;
+  editorSettings: EditorSettings;
   loadFile: (file: File) => Promise<void>;
   clearSession: () => void;
   updateRegions: (regions: WaveformRegion[]) => void;
   updateCuePoints: (cuePoints: CuePoint[]) => void;
   setPlayhead: (position: number) => void;
+  setSnapDivision: (division: 1 | 2 | 4 | null) => void;
+  setActiveRegion: (id: string | null) => void;
+  setActiveCue: (id: string | null) => void;
+  setFileBpm: (bpm: number | null) => void;
+  addCuePoint: (position: number) => void;
+  removeCuePoint: (id: string) => void;
+  updateCuePoint: (id: string, updates: Partial<CuePoint>) => void;
 }
+
+const createInitialEditorSettings = (): EditorSettings => ({
+  snapDivision: null,
+  activeRegionId: null,
+  activeCueId: null,
+});
 
 const getAudioFormat = (fileName: string): AudioFormat => {
   const normalizedName = fileName.toLowerCase();
@@ -45,9 +59,25 @@ const revokeSessionUrl = (session: AudioSession | null): void => {
   }
 };
 
+const getNextCueColor = (cueCount: number): string => CUE_COLORS[cueCount % CUE_COLORS.length];
+
+const getNextHotkey = (cuePoints: CuePoint[]): number | null => {
+  const assignedHotkeys = new Set(cuePoints.map((cuePoint) => cuePoint.hotkey).filter((hotkey): hotkey is number => hotkey !== null));
+
+  for (let hotkey = 1; hotkey <= MAX_HOTKEY_CUE_POINTS; hotkey += 1) {
+    if (!assignedHotkeys.has(hotkey)) {
+      return hotkey;
+    }
+  }
+
+  return null;
+};
+
 export const useAudioStore = create<AudioStore>()(
   immer((set, get) => ({
     session: null,
+    // PHASE 2 CHANGE: Editor settings live beside the audio session so panels and overlays share selection/snap state.
+    editorSettings: createInitialEditorSettings(),
     loadFile: async (file: File): Promise<void> => {
       const durationSeconds = await decodeDuration(file);
       const nextUrl = URL.createObjectURL(file);
@@ -83,6 +113,7 @@ export const useAudioStore = create<AudioStore>()(
 
       set((state) => {
         state.session = null;
+        state.editorSettings = createInitialEditorSettings();
       });
     },
     updateRegions: (regions: WaveformRegion[]): void => {
@@ -103,6 +134,69 @@ export const useAudioStore = create<AudioStore>()(
       set((state) => {
         if (state.session) {
           state.session.playheadPosition = position;
+        }
+      });
+    },
+    setSnapDivision: (division: 1 | 2 | 4 | null): void => {
+      set((state) => {
+        state.editorSettings.snapDivision = division;
+      });
+    },
+    setActiveRegion: (id: string | null): void => {
+      set((state) => {
+        state.editorSettings.activeRegionId = id;
+      });
+    },
+    setActiveCue: (id: string | null): void => {
+      set((state) => {
+        state.editorSettings.activeCueId = id;
+      });
+    },
+    setFileBpm: (bpm: number | null): void => {
+      set((state) => {
+        if (state.session) {
+          state.session.file.bpm = bpm;
+        }
+      });
+    },
+    addCuePoint: (position: number): void => {
+      set((state) => {
+        if (!state.session) {
+          return;
+        }
+
+        const cueCount = state.session.cuePoints.length;
+        const cuePoint: CuePoint = {
+          id: nanoid(),
+          position,
+          label: `Cue ${cueCount + 1}`,
+          color: getNextCueColor(cueCount),
+          hotkey: getNextHotkey(state.session.cuePoints),
+        };
+
+        state.session.cuePoints.push(cuePoint);
+        state.editorSettings.activeCueId = cuePoint.id;
+      });
+    },
+    removeCuePoint: (id: string): void => {
+      set((state) => {
+        if (!state.session) {
+          return;
+        }
+
+        state.session.cuePoints = state.session.cuePoints.filter((cuePoint) => cuePoint.id !== id);
+
+        if (state.editorSettings.activeCueId === id) {
+          state.editorSettings.activeCueId = null;
+        }
+      });
+    },
+    updateCuePoint: (id: string, updates: Partial<CuePoint>): void => {
+      set((state) => {
+        const cuePoint = state.session?.cuePoints.find((candidate) => candidate.id === id);
+
+        if (cuePoint) {
+          Object.assign(cuePoint, updates);
         }
       });
     },
