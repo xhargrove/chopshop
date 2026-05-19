@@ -10,6 +10,7 @@ import {
   CUE_COLORS,
   DEFAULT_AUDIO_ZOOM,
   DEFAULT_BEAT_OFFSET_SECONDS,
+  DEFAULT_STEM_MODEL,
   MAX_BPM,
   MAX_HOTKEY_CUE_POINTS,
   MIN_BPM,
@@ -33,6 +34,7 @@ export interface AudioStore {
   setKey: (key: string, source: MetadataSource) => void;
   setBeatOffset: (offsetSeconds: number) => void;
   setBeatGridVisible: (visible: boolean) => void;
+  setStemModel: (model: "2stems" | "4stems") => void;
   resetBpmOverride: () => void;
   resetKeyOverride: () => void;
   addCuePoint: (position: number) => void;
@@ -45,6 +47,7 @@ const createInitialEditorSettings = (): EditorSettings => ({
   activeRegionId: null,
   activeCueId: null,
   beatGridVisible: true,
+  stemModel: DEFAULT_STEM_MODEL,
 });
 
 const roundBpm = (bpm: number): number => Number(Math.min(Math.max(bpm, MIN_BPM), MAX_BPM).toFixed(2));
@@ -114,6 +117,7 @@ export const useAudioStore = create<AudioStore>()(
         key: null,
         beatOffset: DEFAULT_BEAT_OFFSET_SECONDS,
         url: nextUrl,
+        sourceFile: file,
         createdAt: Date.now(),
       };
 
@@ -232,6 +236,11 @@ export const useAudioStore = create<AudioStore>()(
     setBeatGridVisible: (visible: boolean): void => {
       set((state) => {
         state.editorSettings.beatGridVisible = visible;
+      });
+    },
+    setStemModel: (model: "2stems" | "4stems"): void => {
+      set((state) => {
+        state.editorSettings.stemModel = model;
       });
     },
     resetBpmOverride: (): void => {

@@ -20,3 +20,10 @@ export const logger: Logger = {
   warn: createLoggerMethod("warn"),
   error: createLoggerMethod("error"),
 };
+
+export const server: Logger = {
+  debug: (...messages) => console.debug(...messages),
+  info: (...messages) => console.info(...messages),
+  warn: (...messages) => console.warn(...messages),
+  error: (...messages) => console.error(...messages),
+};

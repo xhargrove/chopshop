@@ -20,6 +20,15 @@ export const AUDIO_EXTENSION_FORMATS = {
 export const MAX_FILE_SIZE_MB = 200;
 export const BYTES_PER_MEGABYTE = 1024 * 1024;
 export const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * BYTES_PER_MEGABYTE;
+export const MAX_SEPARATION_FILE_MB = 200;
+export const MAX_SEPARATION_FILE_BYTES = MAX_SEPARATION_FILE_MB * BYTES_PER_MEGABYTE;
+export const DEMUCS_TIMEOUT_MS = 120_000;
+export const EXPORT_OBJECT_URL_REVOKE_MS = 60_000;
+export const EXPORT_DOWNLOAD_STAGGER_MS = 200;
+export const WAV_HEADER_BYTES = 44;
+export const INT16_MAX = 32767;
+export const INT16_MIN = -32768;
+export const MP3_FRAME_SAMPLES = 1152;
 
 export const DEFAULT_AUDIO_ZOOM = 1;
 export const MIN_AUDIO_ZOOM = 1;
@@ -87,6 +96,10 @@ export const EDITOR_NUDGE_SMALL_SECONDS = 0.1;
 export const EDITOR_NUDGE_LARGE_SECONDS = 1;
 export const MAX_HOTKEY_CUE_POINTS = 8;
 export const EMPTY_SELECTION = "";
+export const DEFAULT_STEM_MODEL = "4stems";
+export const STEM_TYPES = ["vocals", "drums", "bass", "other", "guitar", "piano"] as const;
+export const STEM_MODEL_TYPES = ["2stems", "4stems", "6stems"] as const;
+export const EXPORT_MP3_BITRATES = [128, 192, 320] as const;
 
 export const DESIGN_COLORS = {
   background: "#080808",

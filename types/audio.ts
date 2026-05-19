@@ -11,6 +11,7 @@ export interface AudioFile {
   key: string | null;
   beatOffset: number;
   url: string;
+  sourceFile: File;
   createdAt: number;
 }
 
@@ -49,4 +50,5 @@ export interface EditorSettings {
   activeRegionId: string | null;
   activeCueId: string | null;
   beatGridVisible: boolean;
+  stemModel: "2stems" | "4stems";
 }
