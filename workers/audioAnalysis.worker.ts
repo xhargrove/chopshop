@@ -180,8 +180,14 @@ const detectBpmFallback = (samples: Float32Array, sampleRate: number): { bpm: nu
 
 const tryEssentiaBpm = async (samples: Float32Array): Promise<{ bpm: number; confidence: number } | null> => {
   try {
-    const essentiaSpecifier = "essentia.js";
-    const moduleValue: unknown = await import(essentiaSpecifier);
+    const [coreModule, wasmModule] = await Promise.all([
+      import("essentia.js/dist/essentia.js-core.es.js"),
+      import("essentia.js/dist/essentia-wasm.es.js"),
+    ]);
+    const moduleValue: unknown = {
+      Essentia: coreModule.default,
+      EssentiaWASM: wasmModule.EssentiaWASM,
+    };
 
     if (!isRecord(moduleValue) || typeof moduleValue.Essentia !== "function") {
       return null;
