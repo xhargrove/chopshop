@@ -3,7 +3,8 @@
 import { useCallback, useState, type ChangeEvent } from "react";
 
 import { AUDIO_START_SECONDS, DEFAULT_VOLUME, MAX_VOLUME, MIN_VOLUME, SEEK_STEP_SECONDS, VOLUME_STEP } from "@/lib/constants";
-import { formatTime } from "@/lib/time";
+// PHASE 2 CHANGE: Transport uses shared editor formatting utilities.
+import { formatTime } from "@/lib/format";
 
 interface TransportBarProps {
   isPlaying: boolean;

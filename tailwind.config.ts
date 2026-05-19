@@ -17,6 +17,15 @@ const config: Config = {
         accent: "var(--color-accent)",
         "text-primary": "var(--color-text-primary)",
         "text-muted": "var(--color-text-muted)",
+        // PHASE 2 CHANGE: Cue chips need named Tailwind color tokens to avoid inline styles.
+        "cue-1": "#FF3D00",
+        "cue-2": "#00E5FF",
+        "cue-3": "#69FF47",
+        "cue-4": "#FFD600",
+        "cue-5": "#B388FF",
+        "cue-6": "#FF5C8A",
+        "cue-7": "#64FFDA",
+        "cue-8": "#FFAB40",
       },
       fontFamily: {
         body: ["var(--font-instrument-sans)", "sans-serif"],
