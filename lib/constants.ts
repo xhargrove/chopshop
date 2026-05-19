@@ -57,6 +57,7 @@ export const REGION_HANDLE_WIDTH_PX = 8;
 export const REGION_LABEL_FONT_SIZE_PX = 11;
 export const REGION_LABEL_X_OFFSET_PX = 6;
 export const REGION_LABEL_Y_OFFSET_PX = 14;
+export const REGION_MIN_DURATION_SECONDS = 0.001;
 export const CUE_MARKER_SIZE_PX = 10;
 export const CUE_BADGE_SIZE_PX = 18;
 export const CUE_LINE_DASH_PX = 4;
