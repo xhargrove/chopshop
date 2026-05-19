@@ -11,7 +11,7 @@ export function useSessionAudioAnalysis(session: AudioSession): UseAudioAnalysis
   const { analyze, cancel, reset } = analysis;
 
   useEffect(() => {
-    if (analyzedFileIdRef.current === session.file.id || (session.autoBpm !== null && session.autoKey !== null)) {
+    if (analyzedFileIdRef.current === session.file.id) {
       return;
     }
 
@@ -37,7 +37,7 @@ export function useSessionAudioAnalysis(session: AudioSession): UseAudioAnalysis
       isCancelled = true;
       cancel();
     };
-  }, [analyze, cancel, reset, session.autoBpm, session.autoKey, session.file.id, session.file.url]);
+  }, [analyze, cancel, reset, session.file.id, session.file.url]);
 
   return analysis;
 }
