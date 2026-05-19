@@ -1,4 +1,12 @@
-export const ACCEPTED_AUDIO_TYPES = ["audio/wav", "audio/mpeg", "audio/aiff", "audio/flac", "audio/x-wav", "audio/x-aiff"] as const;
+export const ACCEPTED_AUDIO_TYPES = [
+  "audio/wav",
+  "audio/mpeg",
+  "audio/aiff",
+  "audio/flac",
+  "audio/x-wav",
+  "audio/x-aiff",
+  "audio/x-flac",
+] as const;
 
 export const ACCEPTED_AUDIO_EXTENSIONS = [".wav", ".mp3", ".aiff", ".flac"] as const;
 
@@ -26,6 +34,7 @@ export const MAX_PLAYBACK_RATE = 2;
 export const AUDIO_TIME_DECIMALS = 2;
 export const PERCENTAGE_MULTIPLIER = 100;
 export const SECONDS_PER_MINUTE = 60;
+export const MILLISECONDS_PER_SECOND = 1000;
 
 export const WAVEFORM_HEIGHT = 120;
 export const WAVEFORM_CURSOR_WIDTH = 2;
