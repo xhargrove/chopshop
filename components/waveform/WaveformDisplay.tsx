@@ -1,22 +1,19 @@
 "use client";
 
 import WaveSurfer from "wavesurfer.js";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { WaveformOverlays } from "@/components/waveform/WaveformOverlays";
 import {
   DESIGN_COLORS,
   WAVEFORM_CURSOR_WIDTH,
   WAVEFORM_HEIGHT,
-  WAVEFORM_MAX_PX_PER_SECOND,
   WAVEFORM_MIN_PX_PER_SECOND,
-  WAVEFORM_SCROLL_ZOOM_STEP,
   WAVEFORM_SYNC_TOLERANCE_SECONDS,
 } from "@/lib/constants";
 import { formatTime } from "@/lib/format";
+import { useWaveformWheelZoom } from "@/hooks/useWaveformWheelZoom";
 import type { WaveformDisplayProps } from "@/types/waveform";
-
-const clamp = (value: number, minimum: number, maximum: number): number => Math.min(Math.max(value, minimum), maximum);
 
 const getErrorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
@@ -40,7 +37,6 @@ export function WaveformDisplay({
   onCueRenameRequest,
 }: WaveformDisplayProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const waveformFrameRef = useRef<HTMLDivElement | null>(null);
   const wavesurferRef = useRef<WaveSurfer | null>(null);
   const currentTimeRef = useRef(currentTime);
   const durationRef = useRef(duration);
@@ -49,6 +45,7 @@ export function WaveformDisplay({
   const [displayTime, setDisplayTime] = useState(currentTime);
   const [error, setError] = useState<string | null>(null);
   const [containerWidthPx, setContainerWidthPx] = useState(0);
+  const waveformFrameRef = useWaveformWheelZoom(wavesurferRef, zoomRef);
 
   useEffect(() => {
     currentTimeRef.current = currentTime;
@@ -141,34 +138,6 @@ export function WaveformDisplay({
       resizeObserver.disconnect();
     };
   }, [containerRef.current]);
-
-  useEffect(() => {
-    const waveformFrame = waveformFrameRef.current;
-
-    if (!waveformFrame) {
-      return;
-    }
-
-    const handleWheel = (event: globalThis.WheelEvent): void => {
-      const wavesurfer = wavesurferRef.current;
-
-      if (!wavesurfer) {
-        return;
-      }
-
-      event.preventDefault();
-      const direction = event.deltaY < 0 ? WAVEFORM_SCROLL_ZOOM_STEP : -WAVEFORM_SCROLL_ZOOM_STEP;
-      const nextZoom = clamp(zoomRef.current + direction, WAVEFORM_MIN_PX_PER_SECOND, WAVEFORM_MAX_PX_PER_SECOND);
-      zoomRef.current = nextZoom;
-      wavesurfer.zoom(nextZoom);
-    };
-
-    waveformFrame.addEventListener("wheel", handleWheel, { passive: false });
-
-    return () => {
-      waveformFrame.removeEventListener("wheel", handleWheel);
-    };
-  }, []);
 
   const secondsPerPixel = duration > 0 && containerWidthPx > 0 ? duration / containerWidthPx : 0;
 

@@ -2,14 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { BeatOffsetControl } from "@/components/editor/BeatOffsetControl";
-import { CuePointPanel } from "@/components/editor/CuePointPanel";
-import { IntroOutroPanel } from "@/components/editor/IntroOutroPanel";
+import { ExportPanel } from "@/components/export/ExportPanel";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { SessionEditorPanels } from "@/components/session/SessionEditorPanels";
 import { SessionHeader } from "@/components/session/SessionHeader";
 import { SessionMetadataBar } from "@/components/session/SessionMetadataBar";
-import { TransportBar } from "@/components/waveform/TransportBar";
+import { SessionToolbar } from "@/components/session/SessionToolbar";
 import { WaveformDisplay } from "@/components/waveform/WaveformDisplay";
 import { useAudioEngine } from "@/hooks/useAudioEngine";
 import { useRegionEditor } from "@/hooks/useRegionEditor";
@@ -17,6 +16,7 @@ import { useSessionAudioAnalysis } from "@/hooks/useSessionAudioAnalysis";
 import { useSessionShortcuts } from "@/hooks/useSessionShortcuts";
 import { useAudioStore } from "@/store/audioStore";
 import type { AudioSession, CuePoint, WaveformRegion } from "@/types/audio";
+import type { StemType } from "@/types/stems";
 
 interface SessionViewProps {
   session: AudioSession;
@@ -39,8 +39,12 @@ export function SessionView({ session, onClearSession, onPlayheadChange }: Sessi
   const resetBpmOverride = useAudioStore((state) => state.resetBpmOverride);
   const setBeatOffset = useAudioStore((state) => state.setBeatOffset);
   const setBeatGridVisible = useAudioStore((state) => state.setBeatGridVisible);
+  const setStemModel = useAudioStore((state) => state.setStemModel);
   const [renameCueId, setRenameCueId] = useState<string | null>(null);
   const [showBeatOffset, setShowBeatOffset] = useState(false);
+  const [showExport, setShowExport] = useState(false);
+  const [showStems, setShowStems] = useState(false);
+  const [stems, setStems] = useState<Partial<Record<StemType, AudioBuffer>>>({});
   const totalDuration = duration || session.file.durationSeconds;
   const regionEditor = useRegionEditor({ session, snapDivision: editorSettings.snapDivision, updateRegions, setActiveRegion });
   const analysis = useSessionAudioAnalysis(session);
@@ -137,58 +141,56 @@ export function SessionView({ session, onClearSession, onPlayheadChange }: Sessi
         />
       </ErrorBoundary>
 
-      <ErrorBoundary fallbackTitle="Transport failed" fallbackMessage="Playback controls could not render.">
-        <TransportBar
+      <ErrorBoundary fallbackTitle="Toolbar failed" fallbackMessage="Playback and export controls could not render.">
+        <SessionToolbar
           isPlaying={isPlaying}
           currentTime={currentTime}
           duration={totalDuration}
+          file={session.file.sourceFile}
+          stemModel={editorSettings.stemModel}
+          hasStems={Object.keys(stems).length > 0}
           onPlay={play}
           onPause={pause}
           onSeek={handleSeek}
           onVolumeChange={setVolume}
+          onStemModelChange={setStemModel}
+          onStemsComplete={(nextStems) => {
+            setStems(nextStems);
+            setShowStems(true);
+          }}
+          onOpenStems={() => setShowStems(true)}
+          onOpenExport={() => setShowExport((isVisible) => !isVisible)}
         />
       </ErrorBoundary>
-      <ErrorBoundary fallbackTitle="Editor failed" fallbackMessage="Intro and outro controls could not render.">
-        <IntroOutroPanel
-          regions={session.regions}
-          currentTime={currentTime}
-          bpm={session.file.bpm}
-          snapDivision={editorSettings.snapDivision}
-          onBpmChange={(bpm) => (bpm === null ? resetBpmOverride() : setBpm(bpm, "manual"))}
-          onSnapDivisionChange={setSnapDivision}
-          onSetBoundary={regionEditor.setBoundary}
-          onClearRegion={regionEditor.clearRegion}
-          onExtendRegion={regionEditor.extendRegion}
-          onTrimRegion={regionEditor.trimRegion}
-        />
-      </ErrorBoundary>
-      {showBeatOffset ? (
-        <ErrorBoundary fallbackTitle="Beat grid failed" fallbackMessage="Beat grid controls could not render.">
-          <BeatOffsetControl
-            currentTime={currentTime}
-            bpm={session.file.bpm}
-            autoBpm={session.autoBpm}
-            beatOffset={session.file.beatOffset}
-            bpmSource={session.bpmSource}
-            onManualBpm={(bpm) => setBpm(bpm, "manual")}
-            onResetBpm={resetBpmOverride}
-            onBeatOffsetChange={setBeatOffset}
-          />
+      {showExport ? (
+        <ErrorBoundary fallbackTitle="Export failed" fallbackMessage="Export controls could not render.">
+          <ExportPanel session={session} stems={stems} onClose={() => setShowExport(false)} />
         </ErrorBoundary>
       ) : null}
-      <ErrorBoundary fallbackTitle="Cue panel failed" fallbackMessage="Cue point controls could not render.">
-        <CuePointPanel
-          cuePoints={session.cuePoints}
-          activeCueId={editorSettings.activeCueId}
-          renameCueId={renameCueId}
-          currentTime={currentTime}
-          onAddCue={addCuePoint}
-          onSelectCue={setActiveCue}
-          onSeek={handleSeek}
-          onRenameCue={(cueId, label) => updateCuePoint(cueId, { label })}
-          onRenameHandled={() => setRenameCueId(null)}
-        />
-      </ErrorBoundary>
+      <SessionEditorPanels
+        session={session}
+        currentTime={currentTime}
+        snapDivision={editorSettings.snapDivision}
+        activeCueId={editorSettings.activeCueId}
+        renameCueId={renameCueId}
+        showBeatOffset={showBeatOffset}
+        showStems={showStems}
+        stems={stems}
+        onBpmChange={(bpm) => (bpm === null ? resetBpmOverride() : setBpm(bpm, "manual"))}
+        onSnapDivisionChange={setSnapDivision}
+        onSetBoundary={regionEditor.setBoundary}
+        onClearRegion={regionEditor.clearRegion}
+        onExtendRegion={regionEditor.extendRegion}
+        onTrimRegion={regionEditor.trimRegion}
+        onBeatOffsetChange={setBeatOffset}
+        onResetBpm={resetBpmOverride}
+        onAddCue={addCuePoint}
+        onSelectCue={setActiveCue}
+        onSeek={handleSeek}
+        onRenameCue={(cueId, label) => updateCuePoint(cueId, { label })}
+        onRenameHandled={() => setRenameCueId(null)}
+        onOpenExport={() => setShowExport(true)}
+      />
     </section>
   );
 }
