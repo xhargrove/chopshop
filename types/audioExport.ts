@@ -11,6 +11,8 @@ export interface ExportOptions {
   mp3Bitrate: Mp3Bitrate;
   includeStems: StemExportFormat;
   stems?: Partial<Record<StemType, AudioBuffer>>;
+  exportRekordbox?: boolean;
+  exportSerato?: boolean;
 }
 
 export type ExportInMessage =

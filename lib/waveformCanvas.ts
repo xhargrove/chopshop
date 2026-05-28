@@ -4,6 +4,8 @@ import {
   BEAT_GRID_LABEL_FONT_SIZE_PX,
   BEAT_GRID_LABEL_Y_PX,
   BEAT_GRID_PHRASE_COLOR,
+  BLEEP_REGION_BORDER,
+  BLEEP_REGION_FILL,
   CUE_BADGE_SIZE_PX,
   CUE_LINE_DASH_PX,
   CUE_LINE_GAP_PX,
@@ -16,7 +18,7 @@ import {
   REGION_LABEL_Y_OFFSET_PX,
 } from "@/lib/constants";
 import { getNearestBeatIndex } from "@/lib/beatGrid";
-import type { CuePoint, WaveformRegion } from "@/types/audio";
+import type { BleepRegion, CuePoint, TransitionCue, WaveformRegion } from "@/types/audio";
 
 interface RegionBounds {
   startX: number;
@@ -165,5 +167,92 @@ export const drawBeatGridCanvas = (
       context.fillStyle = DESIGN_COLORS.textMuted;
       context.fillText(String(beatIndex / 4 + 1), x + 2, BEAT_GRID_LABEL_Y_PX);
     }
+  });
+};
+
+const drawHatch = (context: CanvasRenderingContext2D, x: number, y: number, width: number, height: number): void => {
+  context.save();
+  context.beginPath();
+  context.rect(x, y, width, height);
+  context.clip();
+  context.strokeStyle = BLEEP_REGION_BORDER;
+  context.lineWidth = 1;
+
+  for (let offset = -height; offset < width + height; offset += 8) {
+    context.beginPath();
+    context.moveTo(x + offset, y);
+    context.lineTo(x + offset + height, y + height);
+    context.stroke();
+  }
+
+  context.restore();
+};
+
+export const drawBleepRegionCanvas = (
+  context: CanvasRenderingContext2D,
+  regions: BleepRegion[],
+  containerWidthPx: number,
+  heightPx: number,
+  scrollOffsetSeconds: number,
+  secondsPerPixel: number,
+): void => {
+  regions.forEach((region) => {
+    const startX = (region.start - scrollOffsetSeconds) / secondsPerPixel;
+    const endX = (region.end - scrollOffsetSeconds) / secondsPerPixel;
+    const visibleX = Math.max(startX, 0);
+    const visibleWidth = Math.min(endX, containerWidthPx) - visibleX;
+
+    if (visibleWidth <= 0) {
+      return;
+    }
+
+    context.fillStyle = BLEEP_REGION_FILL;
+    context.fillRect(visibleX, 0, visibleWidth, heightPx);
+    context.strokeStyle = BLEEP_REGION_BORDER;
+    context.strokeRect(visibleX, 0, visibleWidth, heightPx);
+    drawHatch(context, visibleX, 0, visibleWidth, heightPx);
+    context.font = `${REGION_LABEL_FONT_SIZE_PX}px var(--font-dm-mono), monospace`;
+    context.fillStyle = DESIGN_COLORS.textPrimary;
+    context.fillText(region.label, visibleX + REGION_LABEL_X_OFFSET_PX, REGION_LABEL_Y_OFFSET_PX);
+  });
+};
+
+export const drawTransitionCueCanvas = (
+  context: CanvasRenderingContext2D,
+  cues: TransitionCue[],
+  containerWidthPx: number,
+  heightPx: number,
+  scrollOffsetSeconds: number,
+  secondsPerPixel: number,
+): void => {
+  const accent = DESIGN_COLORS.accent;
+
+  cues.forEach((cue) => {
+    const centerX = (cue.position - scrollOffsetSeconds) / secondsPerPixel;
+    const inX = (cue.inPoint - scrollOffsetSeconds) / secondsPerPixel;
+    const outX = (cue.outPoint - scrollOffsetSeconds) / secondsPerPixel;
+
+    if (centerX < 0 || centerX > containerWidthPx) {
+      return;
+    }
+
+    context.strokeStyle = accent;
+    context.lineWidth = 2;
+    context.beginPath();
+    context.moveTo(centerX, 0);
+    context.lineTo(centerX, heightPx);
+    context.stroke();
+
+    const bracketHeight = heightPx * 0.35;
+    context.beginPath();
+    context.moveTo(inX, bracketHeight);
+    context.lineTo(inX, 0);
+    context.lineTo(outX, 0);
+    context.lineTo(outX, bracketHeight);
+    context.stroke();
+
+    context.font = `${REGION_LABEL_FONT_SIZE_PX}px var(--font-dm-mono), monospace`;
+    context.fillStyle = accent;
+    context.fillText(cue.label, centerX + REGION_LABEL_X_OFFSET_PX, REGION_LABEL_Y_OFFSET_PX + 14);
   });
 };

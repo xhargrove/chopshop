@@ -54,12 +54,8 @@ const getMonoSlice = (audioBuffer: AudioBuffer, maxSamples: number): Float32Arra
   return normalizePeak(mono, 1);
 };
 
-export function detectOffset(a: AudioBuffer, b: AudioBuffer): number {
-  const sampleRate = Math.min(a.sampleRate, b.sampleRate);
-  const maxLag = Math.min(Math.round(MAX_OFFSET_CORRELATION_SECONDS * sampleRate), a.length, b.length);
-  const analysisLength = Math.min(a.length, b.length, sampleRate * 30);
-  const aData = getMonoSlice(a, analysisLength);
-  const bData = getMonoSlice(b, analysisLength);
+export function detectOffsetFromMono(aData: Float32Array, bData: Float32Array, sampleRate: number): number {
+  const maxLag = Math.min(Math.round(MAX_OFFSET_CORRELATION_SECONDS * sampleRate), aData.length, bData.length);
   let bestLag = 0;
   let bestScore = Number.NEGATIVE_INFINITY;
 
@@ -80,4 +76,13 @@ export function detectOffset(a: AudioBuffer, b: AudioBuffer): number {
   }
 
   return -bestLag / sampleRate;
+}
+
+export function detectOffset(a: AudioBuffer, b: AudioBuffer): number {
+  const sampleRate = Math.min(a.sampleRate, b.sampleRate);
+  const analysisLength = Math.min(a.length, b.length, sampleRate * 30);
+  const aData = getMonoSlice(a, analysisLength);
+  const bData = getMonoSlice(b, analysisLength);
+
+  return detectOffsetFromMono(aData, bData, sampleRate);
 }

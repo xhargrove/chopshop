@@ -40,6 +40,8 @@ export function ExportPanel({ session, stems, onClose }: ExportPanelProps) {
   const [format, setFormat] = useState<ExportFormat>("wav");
   const [mp3Bitrate, setMp3Bitrate] = useState<Mp3Bitrate>(320);
   const [includeStems, setIncludeStems] = useState<StemExportFormat>(false);
+  const [exportRekordbox, setExportRekordbox] = useState(false);
+  const [exportSerato, setExportSerato] = useState(false);
   const hasStems = Object.keys(stems).length > 0;
   const baseName = sanitizeTrackName(session.file.name);
   const regionLabel = getRegionLabel(region);
@@ -58,11 +60,19 @@ export function ExportPanel({ session, stems, onClose }: ExportPanelProps) {
       files.push(`${baseName}_stems.zip`);
     }
 
+    if (exportRekordbox) {
+      files.push(`${baseName}_rekordbox.xml`);
+    }
+
+    if (exportSerato) {
+      files.push(`${baseName}_serato_cues.json`);
+    }
+
     return files;
-  }, [baseName, format, includeStems, regionLabel]);
+  }, [baseName, exportRekordbox, exportSerato, format, includeStems, regionLabel]);
 
   const handleExport = (): void => {
-    void exportFiles(session, { region, format, mp3Bitrate, includeStems, stems });
+    void exportFiles(session, { region, format, mp3Bitrate, includeStems, stems, exportRekordbox, exportSerato });
   };
 
   return (
@@ -103,6 +113,18 @@ export function ExportPanel({ session, stems, onClose }: ExportPanelProps) {
               </button>
             ))}
           </div>
+        </fieldset>
+        <fieldset className="rounded-dropzone border border-border p-3 md:col-span-2">
+          <legend className="px-2 font-mono text-xs uppercase tracking-[0.2em] text-text-muted">DJ library exports</legend>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className={`rounded border px-3 py-2 font-mono text-xs uppercase ${exportRekordbox ? "border-accent text-accent" : "border-border"}`} onClick={() => setExportRekordbox((value) => !value)}>
+              Rekordbox XML
+            </button>
+            <button type="button" className={`rounded border px-3 py-2 font-mono text-xs uppercase ${exportSerato ? "border-accent text-accent" : "border-border"}`} onClick={() => setExportSerato((value) => !value)}>
+              Serato JSON
+            </button>
+          </div>
+          <p className="mt-2 font-mono text-xs text-text-muted">Serato export is a JSON sidecar only; .crate files are not generated here.</p>
         </fieldset>
         <fieldset className="rounded-dropzone border border-border p-3">
           <legend className="px-2 font-mono text-xs uppercase tracking-[0.2em] text-text-muted">Include stems</legend>

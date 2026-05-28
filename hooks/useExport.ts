@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { applyBleepRegions } from "@/lib/bleepEdit";
+import { generateRekordboxXml } from "@/lib/export/rekordboxXml";
+import { generateSeratoCueExport } from "@/lib/export/seratoExport";
 import { ANALYSIS_PROGRESS_COMPLETE, EXPORT_DOWNLOAD_STAGGER_MS, EXPORT_OBJECT_URL_REVOKE_MS } from "@/lib/constants";
 import type { AudioSession } from "@/types/audio";
 import type { ExportInMessage, ExportOptions, ExportOutMessage } from "@/types/audioExport";
@@ -160,7 +163,16 @@ export function useExport(): UseExportReturn {
         const region = getRegionBounds(session, options.region);
         const baseName = sanitizeTrackName(session.file.name);
         const files: EncodedFile[] = [];
-        const stereoBuffer = audioBufferToStereo(sourceBuffer, region.start, region.end);
+        let stereoBuffer = audioBufferToStereo(sourceBuffer, region.start, region.end);
+
+        if (session.bleepRegions.length > 0) {
+          const adjustedRegions = session.bleepRegions.map((bleepRegion) => ({
+            ...bleepRegion,
+            start: Math.max(bleepRegion.start - region.start, 0),
+            end: Math.min(bleepRegion.end - region.start, region.end - region.start),
+          }));
+          stereoBuffer = applyBleepRegions(stereoBuffer, adjustedRegions, sourceBuffer.sampleRate);
+        }
 
         if (options.format === "wav" || options.format === "both") {
           files.push(await sendExportMessage({ type: "EXPORT_WAV", buffer: stereoBuffer.slice(), sampleRate: sourceBuffer.sampleRate, numChannels: 2 }, `${baseName}_${region.label}.wav`));
@@ -173,6 +185,20 @@ export function useExport(): UseExportReturn {
               `${baseName}_${region.label}.mp3`,
             ),
           );
+        }
+
+        if (options.exportRekordbox) {
+          files.push({
+            blob: new Blob([generateRekordboxXml(session)], { type: "application/xml" }),
+            filename: `${baseName}_rekordbox.xml`,
+          });
+        }
+
+        if (options.exportSerato) {
+          files.push({
+            blob: new Blob([JSON.stringify(generateSeratoCueExport(session), null, 2)], { type: "application/json" }),
+            filename: `${baseName}_serato_cues.json`,
+          });
         }
 
         if (options.includeStems && options.stems) {

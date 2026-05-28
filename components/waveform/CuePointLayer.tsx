@@ -13,7 +13,10 @@ interface CuePointLayerProps {
   containerWidthPx: number;
   scrollOffsetSeconds: number;
   secondsPerPixel: number;
+  prepareMode: boolean;
+  activeHotkeySlot: number;
   onCueAdd: (position: number) => void;
+  onCueSetAtHotkey: (hotkey: number, position: number) => void;
   onCueSelect: (cueId: string) => void;
   onCueMove: (cue: CuePoint) => void;
   onCueDelete: (cueId: string) => void;
@@ -34,7 +37,10 @@ export function CuePointLayer({
   containerWidthPx,
   scrollOffsetSeconds,
   secondsPerPixel,
+  prepareMode,
+  activeHotkeySlot,
   onCueAdd,
+  onCueSetAtHotkey,
   onCueSelect,
   onCueMove,
   onCueDelete,
@@ -96,7 +102,14 @@ export function CuePointLayer({
       }
 
       if (!hit) {
-        onCueAdd(getPointerPosition(canvas, event.clientX));
+        const position = getPointerPosition(canvas, event.clientX);
+
+        if (prepareMode) {
+          onCueSetAtHotkey(activeHotkeySlot, position);
+        } else {
+          onCueAdd(position);
+        }
+
         return;
       }
 
@@ -106,7 +119,7 @@ export function CuePointLayer({
       onCueSelect(hit.id);
       setCursorClass("cursor-grabbing");
     },
-    [getPointerPosition, hitTest, onCueAdd, onCueSelect],
+    [activeHotkeySlot, getPointerPosition, hitTest, onCueAdd, onCueSelect, onCueSetAtHotkey, prepareMode],
   );
 
   const handlePointerMove = useCallback(

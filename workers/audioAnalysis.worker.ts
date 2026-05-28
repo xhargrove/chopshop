@@ -1,3 +1,4 @@
+import { detectOffsetFromMono } from "@/lib/audioMix";
 import {
   ANALYSIS_PROGRESS_COMPLETE,
   ANALYSIS_PROGRESS_HALF,
@@ -340,7 +341,7 @@ const detectKeyFallback = (samples: Float32Array, sampleRate: number): { key: st
   };
 };
 
-const handleAnalysis = async (message: Exclude<WorkerInMessage, { type: "CANCEL" }>): Promise<void> => {
+const handleAnalysis = async (message: Exclude<WorkerInMessage, { type: "CANCEL" } | { type: "DETECT_OFFSET" }>): Promise<void> => {
   cancelled = false;
   const pcmAudio = decodeWav(message.audioBuffer, message.sampleRate);
 
@@ -382,6 +383,16 @@ ctx.onmessage = (event: MessageEvent<WorkerInMessage>): void => {
   if (message.type === "CANCEL") {
     cancelled = true;
     postWorkerResponse({ type: "CANCELLED" });
+    return;
+  }
+
+  if (message.type === "DETECT_OFFSET") {
+    try {
+      const offsetSeconds = detectOffsetFromMono(message.bufferA, message.bufferB, message.sampleRate);
+      postWorkerResponse({ type: "OFFSET_RESULT", offsetSeconds });
+    } catch (error: unknown) {
+      postWorkerResponse({ type: "ERROR", message: error instanceof Error ? error.message : String(error) });
+    }
     return;
   }
 

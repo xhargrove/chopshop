@@ -1,7 +1,7 @@
 export type AudioFormat = "wav" | "mp3" | "aiff" | "flac";
 export type MetadataSource = "auto" | "manual";
 export type BleepMode = "bleep" | "mute" | "duck";
-export type EditorTab = "edit" | "clean" | "swap" | "transition" | "history";
+export type EditorTabId = "prepare" | "edit" | "clean" | "swap" | "transition" | "history";
 
 export interface AudioFile {
   id: string;
@@ -80,7 +80,9 @@ export interface EditorSettings {
   snapDivision: 1 | 2 | 4 | null;
   activeRegionId: string | null;
   activeCueId: string | null;
+  /** Active hot-cue pad (1–8) for Prepare-mode waveform placement. */
+  activeHotkeySlot: number;
   beatGridVisible: boolean;
   stemModel: "2stems" | "4stems";
-  activeTab: EditorTab;
+  activeTab: EditorTabId;
 }

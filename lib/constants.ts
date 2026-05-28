@@ -48,6 +48,7 @@ export const AUDIO_START_SECONDS = 0;
 export const PERCENTAGE_MULTIPLIER = 100;
 export const SECONDS_PER_MINUTE = 60;
 export const MILLISECONDS_PER_SECOND = 1000;
+export const PLAYHEAD_UI_UPDATE_MS = 33;
 export const TIME_SECONDS_PAD_LENGTH = 6;
 export const LONG_TIME_SECONDS_PAD_LENGTH = 2;
 export const DEFAULT_BEATS_PER_BAR = 4;
@@ -110,6 +111,10 @@ export const DEFAULT_NORMALIZE_PEAK = 0.9;
 export const DEFAULT_SWAP_VOCAL_GAIN = 1;
 export const DEFAULT_SWAP_INSTRUMENTAL_GAIN = 0.85;
 export const MAX_OFFSET_CORRELATION_SECONDS = 5;
+export const BLEEP_REGION_FILL = "rgba(255, 61, 0, 0.3)";
+export const BLEEP_REGION_BORDER = "rgba(255, 61, 0, 0.6)";
+export const TRANSITION_CUE_COLOR = "#FF3D00";
+export const EDITOR_TABS = ["prepare", "edit", "clean", "swap", "transition", "history"] as const;
 
 export const DESIGN_COLORS = {
   background: "#080808",

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizePeak } from "@/lib/audioMix";
+import { detectOffsetFromMono, normalizePeak } from "@/lib/audioMix";
 
 describe("audio mix utilities", () => {
   it("normalizes peak level without mutating input", () => {
@@ -14,5 +14,19 @@ describe("audio mix utilities", () => {
 
   it("keeps silent buffers silent", () => {
     expect(Array.from(normalizePeak(new Float32Array([0, 0, 0])))).toEqual([0, 0, 0]);
+  });
+
+  it("detects positive offset when the second signal is delayed", () => {
+    const sampleRate = 44100;
+    const length = sampleRate;
+    const bufferA = new Float32Array(length);
+    const bufferB = new Float32Array(length);
+
+    for (let index = 0; index < length; index += 1) {
+      bufferA[index] = Math.sin((2 * Math.PI * 220 * index) / sampleRate);
+      bufferB[index] = index < 200 ? 0 : bufferA[index - 200];
+    }
+
+    expect(detectOffsetFromMono(bufferA, bufferB, sampleRate)).toBeCloseTo(200 / sampleRate, 2);
   });
 });

@@ -18,7 +18,7 @@ import {
   VALID_CAMELOT_VALUES,
 } from "@/lib/constants";
 import { registerUndoSessionAccessors, useUndoStore } from "@/store/undoStore";
-import type { AcapellaSwapCommit, AudioFile, AudioFormat, AudioSession, BleepMode, BleepRegion, CuePoint, EditorSettings, EditorTab, MetadataSource, TransitionCue, WaveformRegion } from "@/types/audio";
+import type { AcapellaSwapCommit, AudioFile, AudioFormat, AudioSession, BleepMode, BleepRegion, CuePoint, EditorSettings, EditorTabId, MetadataSource, TransitionCue, WaveformRegion } from "@/types/audio";
 
 export interface AudioStore {
   session: AudioSession | null;
@@ -37,7 +37,7 @@ export interface AudioStore {
   setBeatOffset: (offsetSeconds: number) => void;
   setBeatGridVisible: (visible: boolean) => void;
   setStemModel: (model: "2stems" | "4stems") => void;
-  setActiveTab: (tab: EditorTab) => void;
+  setActiveTab: (tab: EditorTabId) => void;
   updateBleepRegions: (regions: BleepRegion[]) => void;
   addBleepRegion: (start: number, end: number, mode: BleepMode) => void;
   removeBleepRegion: (id: string) => void;
@@ -49,17 +49,21 @@ export interface AudioStore {
   resetBpmOverride: () => void;
   resetKeyOverride: () => void;
   addCuePoint: (position: number) => void;
+  setCueAtHotkey: (hotkey: number, position: number) => void;
+  clearCueAtHotkey: (hotkey: number) => void;
   removeCuePoint: (id: string) => void;
   updateCuePoint: (id: string, updates: Partial<CuePoint>) => void;
+  setActiveHotkeySlot: (hotkey: number) => void;
 }
 
 const createInitialEditorSettings = (): EditorSettings => ({
-  snapDivision: null,
+  snapDivision: 4,
   activeRegionId: null,
   activeCueId: null,
+  activeHotkeySlot: 1,
   beatGridVisible: true,
   stemModel: DEFAULT_STEM_MODEL,
-  activeTab: "edit",
+  activeTab: "prepare",
 });
 
 const roundBpm = (bpm: number): number => Number(Math.min(Math.max(bpm, MIN_BPM), MAX_BPM).toFixed(2));
@@ -272,7 +276,7 @@ export const useAudioStore = create<AudioStore>()(
         state.editorSettings.stemModel = model;
       });
     },
-    setActiveTab: (tab: EditorTab): void => {
+    setActiveTab: (tab: EditorTabId): void => {
       set((state) => {
         state.editorSettings.activeTab = tab;
       });
@@ -386,6 +390,61 @@ export const useAudioStore = create<AudioStore>()(
 
         state.session.cuePoints.push(cuePoint);
         state.editorSettings.activeCueId = cuePoint.id;
+      });
+    },
+    setCueAtHotkey: (hotkey: number, position: number): void => {
+      if (hotkey < 1 || hotkey > MAX_HOTKEY_CUE_POINTS) {
+        return;
+      }
+
+      pushUndoSnapshot(get().session, `Set cue ${hotkey}`);
+      set((state) => {
+        if (!state.session) {
+          return;
+        }
+
+        const color = CUE_COLORS[hotkey - 1];
+        const existing = state.session.cuePoints.find((cuePoint) => cuePoint.hotkey === hotkey);
+
+        if (existing) {
+          existing.position = position;
+          state.editorSettings.activeCueId = existing.id;
+          return;
+        }
+
+        const cuePoint: CuePoint = {
+          id: nanoid(),
+          position,
+          label: `Cue ${hotkey}`,
+          color,
+          hotkey,
+        };
+
+        state.session.cuePoints.push(cuePoint);
+        state.editorSettings.activeCueId = cuePoint.id;
+        state.editorSettings.activeHotkeySlot = hotkey;
+      });
+    },
+    clearCueAtHotkey: (hotkey: number): void => {
+      pushUndoSnapshot(get().session, `Clear cue ${hotkey}`);
+      set((state) => {
+        if (!state.session) {
+          return;
+        }
+
+        const removed = state.session.cuePoints.find((cuePoint) => cuePoint.hotkey === hotkey);
+        state.session.cuePoints = state.session.cuePoints.filter((cuePoint) => cuePoint.hotkey !== hotkey);
+
+        if (removed && state.editorSettings.activeCueId === removed.id) {
+          state.editorSettings.activeCueId = null;
+        }
+      });
+    },
+    setActiveHotkeySlot: (hotkey: number): void => {
+      set((state) => {
+        if (hotkey >= 1 && hotkey <= MAX_HOTKEY_CUE_POINTS) {
+          state.editorSettings.activeHotkeySlot = hotkey;
+        }
       });
     },
     removeCuePoint: (id: string): void => {

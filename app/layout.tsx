@@ -24,6 +24,9 @@ const instrumentSans = Instrument_Sans({
 export const metadata: Metadata = {
   title: "Chop Shop",
   description: "A professional DJ edit workspace for slicing, cueing, and previewing tracks in the browser.",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 interface RootLayoutProps {

@@ -4,11 +4,13 @@ export type WorkerInMessage =
   | { type: "ANALYZE_BPM"; audioBuffer: ArrayBuffer; sampleRate: number }
   | { type: "ANALYZE_KEY"; audioBuffer: ArrayBuffer; sampleRate: number }
   | { type: "ANALYZE_ALL"; audioBuffer: ArrayBuffer; sampleRate: number }
+  | { type: "DETECT_OFFSET"; bufferA: Float32Array; bufferB: Float32Array; sampleRate: number }
   | { type: "CANCEL" };
 
 export type WorkerOutMessage =
   | { type: "BPM_RESULT"; bpm: number; confidence: number }
   | { type: "KEY_RESULT"; key: string; confidence: number }
+  | { type: "OFFSET_RESULT"; offsetSeconds: number }
   | { type: "PROGRESS"; stage: "bpm" | "key"; percent: number }
   | { type: "ERROR"; message: string }
   | { type: "CANCELLED" };

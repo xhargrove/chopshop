@@ -1,19 +1,17 @@
 "use client";
 
-import { Howl } from "howler";
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
+import type WaveSurfer from "wavesurfer.js";
 
 import {
   AUDIO_TIME_DECIMALS,
-  DEFAULT_PLAYBACK_RATE,
   DEFAULT_VOLUME,
   MAX_PLAYBACK_RATE,
   MAX_VOLUME,
-  MILLISECONDS_PER_SECOND,
   MIN_PLAYBACK_RATE,
   MIN_VOLUME,
+  PLAYHEAD_UI_UPDATE_MS,
 } from "@/lib/constants";
-import type { AudioFormat } from "@/types/audio";
 
 interface AudioEngineState {
   isPlaying: boolean;
@@ -24,8 +22,10 @@ interface AudioEngineState {
 }
 
 interface AudioEngineControls {
-  rawHowl: MutableRefObject<Howl | null>;
-  load: (url: string, format: AudioFormat) => Promise<void>;
+  rawWaveSurfer: MutableRefObject<WaveSurfer | null>;
+  bind: (wavesurfer: WaveSurfer) => () => void;
+  registerPlayheadSync: (handler: ((seconds: number) => void) | null) => void;
+  load: () => Promise<void>;
   play: () => void;
   pause: () => void;
   seek: (seconds: number) => void;
@@ -42,13 +42,12 @@ const roundTime = (seconds: number): number => Number(seconds.toFixed(AUDIO_TIME
 const getErrorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
 export function useAudioEngine(): AudioEngine {
-  const howlRef = useRef<Howl | null>(null);
-  const animationFrameIdRef = useRef<number | null>(null);
+  const waveSurferRef = useRef<WaveSurfer | null>(null);
   const durationRef = useRef<number>(0);
-  const isPlayingRef = useRef<boolean>(false);
-  const playbackRateRef = useRef<number>(DEFAULT_PLAYBACK_RATE);
-  const playbackBasePositionRef = useRef<number>(0);
-  const playbackBaseTimeRef = useRef<number>(0);
+  const unsubscribeRef = useRef<(() => void) | null>(null);
+  const isApplyingSeekRef = useRef(false);
+  const isPlayingRef = useRef(false);
+  const playheadSyncRef = useRef<((seconds: number) => void) | null>(null);
 
   const [state, setState] = useState<AudioEngineState>({
     isPlaying: false,
@@ -58,198 +57,203 @@ export function useAudioEngine(): AudioEngine {
     error: null,
   });
 
-  const stopAnimation = useCallback((): void => {
-    if (animationFrameIdRef.current !== null) {
-      cancelAnimationFrame(animationFrameIdRef.current);
-      animationFrameIdRef.current = null;
-    }
+  const syncPlayheadStore = useCallback((seconds: number): void => {
+    playheadSyncRef.current?.(roundTime(seconds));
   }, []);
 
-  const syncPlaybackClock = useCallback((position: number): void => {
-    playbackBasePositionRef.current = position;
-    playbackBaseTimeRef.current = performance.now();
+  const bind = useCallback((wavesurfer: WaveSurfer): (() => void) => {
+    unsubscribeRef.current?.();
+    waveSurferRef.current = wavesurfer;
+    let lastUiUpdateAt = 0;
+
+    const publishTime = (seconds: number, force: boolean = false): void => {
+      const nextTime = roundTime(seconds);
+      const now = performance.now();
+
+      if (!force && now - lastUiUpdateAt < PLAYHEAD_UI_UPDATE_MS) {
+        return;
+      }
+
+      lastUiUpdateAt = now;
+      setState((currentState) => (currentState.currentTime === nextTime ? currentState : { ...currentState, currentTime: nextTime }));
+    };
+
+    const handleUserSeek = (seconds: number): void => {
+      publishTime(seconds, true);
+
+      if (!isApplyingSeekRef.current) {
+        syncPlayheadStore(seconds);
+      }
+    };
+
+    const offReady = wavesurfer.on("ready", () => {
+      const duration = roundTime(wavesurfer.getDuration());
+      durationRef.current = duration;
+      wavesurfer.setVolume(DEFAULT_VOLUME);
+
+      setState({
+        isPlaying: false,
+        duration,
+        currentTime: roundTime(wavesurfer.getCurrentTime()),
+        isLoaded: true,
+        error: null,
+      });
+    });
+
+    const offPlay = wavesurfer.on("play", () => {
+      isPlayingRef.current = true;
+      setState((currentState) => (currentState.isPlaying ? currentState : { ...currentState, isPlaying: true }));
+    });
+
+    const offPause = wavesurfer.on("pause", () => {
+      isPlayingRef.current = false;
+      handleUserSeek(wavesurfer.getCurrentTime());
+      setState((currentState) => ({ ...currentState, isPlaying: false }));
+    });
+
+    const offFinish = wavesurfer.on("finish", () => {
+      isPlayingRef.current = false;
+      setState((currentState) => ({
+        ...currentState,
+        isPlaying: false,
+        currentTime: roundTime(durationRef.current),
+      }));
+      syncPlayheadStore(durationRef.current);
+    });
+
+    const offTime = wavesurfer.on("timeupdate", (time) => {
+      publishTime(time);
+
+      if (!isPlayingRef.current) {
+        syncPlayheadStore(time);
+      }
+    });
+
+    const offSeek = wavesurfer.on("seeking", (time) => {
+      handleUserSeek(time);
+    });
+
+    const offInteraction = wavesurfer.on("interaction", () => {
+      handleUserSeek(wavesurfer.getCurrentTime());
+    });
+
+    const offError = wavesurfer.on("error", (waveformError) => {
+      isPlayingRef.current = false;
+      setState((currentState) => ({
+        ...currentState,
+        isLoaded: false,
+        isPlaying: false,
+        error: getErrorMessage(waveformError),
+      }));
+    });
+
+    unsubscribeRef.current = (): void => {
+      offReady();
+      offPlay();
+      offPause();
+      offFinish();
+      offTime();
+      offSeek();
+      offInteraction();
+      offError();
+
+      if (waveSurferRef.current === wavesurfer) {
+        waveSurferRef.current = null;
+      }
+    };
+
+    return unsubscribeRef.current;
+  }, [syncPlayheadStore]);
+
+  const registerPlayheadSync = useCallback((handler: ((seconds: number) => void) | null): void => {
+    playheadSyncRef.current = handler;
   }, []);
 
-  const getClockPosition = useCallback((): number => {
-    if (!isPlayingRef.current) {
-      return playbackBasePositionRef.current;
-    }
-
-    const elapsedSeconds = (performance.now() - playbackBaseTimeRef.current) / MILLISECONDS_PER_SECOND;
-    return clamp(playbackBasePositionRef.current + elapsedSeconds * playbackRateRef.current, 0, durationRef.current);
+  const load = useCallback(async (): Promise<void> => {
+    durationRef.current = 0;
+    isPlayingRef.current = false;
+    setState({
+      isPlaying: false,
+      duration: 0,
+      currentTime: 0,
+      isLoaded: false,
+      error: null,
+    });
   }, []);
-
-  const updateCurrentTime = useCallback((): void => {
-    const nextTime = roundTime(getClockPosition());
-
-    setState((currentState) => ({
-      ...currentState,
-      currentTime: nextTime,
-    }));
-
-    animationFrameIdRef.current = requestAnimationFrame(updateCurrentTime);
-  }, [getClockPosition]);
-
-  const startAnimation = useCallback((): void => {
-    stopAnimation();
-    animationFrameIdRef.current = requestAnimationFrame(updateCurrentTime);
-  }, [stopAnimation, updateCurrentTime]);
-
-  const readHowlPosition = useCallback((): number => {
-    const howl = howlRef.current;
-    const seekPosition = howl?.seek();
-
-    return typeof seekPosition === "number" ? seekPosition : playbackBasePositionRef.current;
-  }, []);
-
-  const load = useCallback(
-    (url: string, format: AudioFormat): Promise<void> =>
-      new Promise((resolve) => {
-        stopAnimation();
-        howlRef.current?.unload();
-        durationRef.current = 0;
-        isPlayingRef.current = false;
-        playbackRateRef.current = DEFAULT_PLAYBACK_RATE;
-        syncPlaybackClock(0);
-
-        setState({
-          isPlaying: false,
-          duration: 0,
-          currentTime: 0,
-          isLoaded: false,
-          error: null,
-        });
-
-        const howl = new Howl({
-          src: [url],
-          format: [format],
-          html5: false,
-          volume: DEFAULT_VOLUME,
-          rate: DEFAULT_PLAYBACK_RATE,
-          onload: () => {
-            const duration = roundTime(howl.duration());
-            durationRef.current = duration;
-
-            setState((currentState) => ({
-              ...currentState,
-              duration,
-              isLoaded: true,
-              error: null,
-            }));
-            resolve();
-          },
-          onloaderror: (_soundId: number, loadError: unknown) => {
-            const error = getErrorMessage(loadError);
-            isPlayingRef.current = false;
-            setState((currentState) => ({
-              ...currentState,
-              isLoaded: false,
-              isPlaying: false,
-              error,
-            }));
-            resolve();
-          },
-          onplay: () => {
-            const position = readHowlPosition();
-            isPlayingRef.current = true;
-            syncPlaybackClock(position);
-            setState((currentState) => ({
-              ...currentState,
-              isPlaying: true,
-              currentTime: roundTime(position),
-            }));
-            startAnimation();
-          },
-          onpause: () => {
-            const position = readHowlPosition();
-            isPlayingRef.current = false;
-            stopAnimation();
-            syncPlaybackClock(position);
-            setState((currentState) => ({
-              ...currentState,
-              isPlaying: false,
-              currentTime: roundTime(position),
-            }));
-          },
-          onend: () => {
-            isPlayingRef.current = false;
-            stopAnimation();
-            syncPlaybackClock(durationRef.current);
-            setState((currentState) => ({
-              ...currentState,
-              isPlaying: false,
-              currentTime: roundTime(durationRef.current),
-            }));
-          },
-        });
-
-        howlRef.current = howl;
-      }),
-    [readHowlPosition, startAnimation, stopAnimation, syncPlaybackClock],
-  );
 
   const play = useCallback((): void => {
-    const howl = howlRef.current;
+    const wavesurfer = waveSurferRef.current;
 
-    if (!howl || !state.isLoaded || state.isPlaying) {
+    if (!wavesurfer || !state.isLoaded || state.isPlaying) {
       return;
     }
 
-    howl.play();
+    void wavesurfer.play();
   }, [state.isLoaded, state.isPlaying]);
 
   const pause = useCallback((): void => {
-    howlRef.current?.pause();
+    void waveSurferRef.current?.pause();
   }, []);
 
   const seek = useCallback(
     (seconds: number): void => {
-      const howl = howlRef.current;
+      const wavesurfer = waveSurferRef.current;
 
-      if (!howl || !state.isLoaded) {
+      if (!wavesurfer || !state.isLoaded || isApplyingSeekRef.current) {
         return;
       }
 
-      const nextPosition = clamp(seconds, 0, durationRef.current);
-      howl.seek(nextPosition);
-      syncPlaybackClock(nextPosition);
+      const nextPosition = clamp(seconds, 0, durationRef.current || wavesurfer.getDuration());
+      const roundedPosition = roundTime(nextPosition);
+
+      if (roundTime(wavesurfer.getCurrentTime()) === roundedPosition) {
+        setState((currentState) =>
+          currentState.currentTime === roundedPosition ? currentState : { ...currentState, currentTime: roundedPosition },
+        );
+        return;
+      }
+
+      isApplyingSeekRef.current = true;
+
+      try {
+        wavesurfer.setTime(nextPosition);
+      } finally {
+        queueMicrotask(() => {
+          isApplyingSeekRef.current = false;
+        });
+      }
 
       setState((currentState) => ({
         ...currentState,
-        currentTime: roundTime(nextPosition),
+        currentTime: roundedPosition,
       }));
     },
-    [state.isLoaded, syncPlaybackClock],
+    [state.isLoaded],
   );
 
   const setVolume = useCallback((volume: number): void => {
-    const clampedVolume = clamp(volume, MIN_VOLUME, MAX_VOLUME);
-    howlRef.current?.volume(clampedVolume);
+    waveSurferRef.current?.setVolume(clamp(volume, MIN_VOLUME, MAX_VOLUME));
   }, []);
 
-  const setRate = useCallback(
-    (rate: number): void => {
-      const clampedRate = clamp(rate, MIN_PLAYBACK_RATE, MAX_PLAYBACK_RATE);
-      const currentPosition = getClockPosition();
-
-      playbackRateRef.current = clampedRate;
-      howlRef.current?.rate(clampedRate);
-      syncPlaybackClock(currentPosition);
-    },
-    [getClockPosition, syncPlaybackClock],
-  );
+  const setRate = useCallback((rate: number): void => {
+    const clampedRate = clamp(rate, MIN_PLAYBACK_RATE, MAX_PLAYBACK_RATE);
+    waveSurferRef.current?.setPlaybackRate(clampedRate);
+  }, []);
 
   useEffect(() => {
     return () => {
-      stopAnimation();
-      howlRef.current?.unload();
-      howlRef.current = null;
+      unsubscribeRef.current?.();
+      unsubscribeRef.current = null;
+      waveSurferRef.current = null;
+      playheadSyncRef.current = null;
     };
-  }, [stopAnimation]);
+  }, []);
 
   return {
     ...state,
-    rawHowl: howlRef,
+    rawWaveSurfer: waveSurferRef,
+    bind,
+    registerPlayheadSync,
     load,
     play,
     pause,

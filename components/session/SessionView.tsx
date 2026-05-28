@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ExportPanel } from "@/components/export/ExportPanel";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
-import { SessionEditorPanels } from "@/components/session/SessionEditorPanels";
+import { SessionEditorWorkspace } from "@/components/session/SessionEditorWorkspace";
 import { SessionHeader } from "@/components/session/SessionHeader";
 import { SessionMetadataBar } from "@/components/session/SessionMetadataBar";
 import { SessionToolbar } from "@/components/session/SessionToolbar";
@@ -14,6 +14,7 @@ import { useAudioEngine } from "@/hooks/useAudioEngine";
 import { useRegionEditor } from "@/hooks/useRegionEditor";
 import { useSessionAudioAnalysis } from "@/hooks/useSessionAudioAnalysis";
 import { useSessionShortcuts } from "@/hooks/useSessionShortcuts";
+import { snapToBeat } from "@/lib/regions";
 import { useAudioStore } from "@/store/audioStore";
 import type { AudioSession, CuePoint, WaveformRegion } from "@/types/audio";
 import type { StemType } from "@/types/stems";
@@ -25,14 +26,17 @@ interface SessionViewProps {
 }
 
 export function SessionView({ session, onClearSession, onPlayheadChange }: SessionViewProps) {
-  const { currentTime, duration, error, isLoaded, isPlaying, load, pause, play, seek, setVolume } = useAudioEngine();
-  // PHASE 2 CHANGE: SessionView now coordinates editor store actions with the Phase 1 playback engine.
+  const { currentTime, duration, error, isLoaded, isPlaying, bind, pause, play, rawWaveSurfer, registerPlayheadSync, seek, setVolume } =
+    useAudioEngine();
   const editorSettings = useAudioStore((state) => state.editorSettings);
   const updateRegions = useAudioStore((state) => state.updateRegions);
   const setSnapDivision = useAudioStore((state) => state.setSnapDivision);
   const setActiveRegion = useAudioStore((state) => state.setActiveRegion);
   const setActiveCue = useAudioStore((state) => state.setActiveCue);
   const addCuePoint = useAudioStore((state) => state.addCuePoint);
+  const setCueAtHotkey = useAudioStore((state) => state.setCueAtHotkey);
+  const clearCueAtHotkey = useAudioStore((state) => state.clearCueAtHotkey);
+  const setActiveHotkeySlot = useAudioStore((state) => state.setActiveHotkeySlot);
   const removeCuePoint = useAudioStore((state) => state.removeCuePoint);
   const updateCuePoint = useAudioStore((state) => state.updateCuePoint);
   const setBpm = useAudioStore((state) => state.setBpm);
@@ -40,6 +44,7 @@ export function SessionView({ session, onClearSession, onPlayheadChange }: Sessi
   const setBeatOffset = useAudioStore((state) => state.setBeatOffset);
   const setBeatGridVisible = useAudioStore((state) => state.setBeatGridVisible);
   const setStemModel = useAudioStore((state) => state.setStemModel);
+  const setActiveTab = useAudioStore((state) => state.setActiveTab);
   const [renameCueId, setRenameCueId] = useState<string | null>(null);
   const [showBeatOffset, setShowBeatOffset] = useState(false);
   const [showExport, setShowExport] = useState(false);
@@ -50,14 +55,14 @@ export function SessionView({ session, onClearSession, onPlayheadChange }: Sessi
   const analysis = useSessionAudioAnalysis(session);
 
   useEffect(() => {
-    void load(session.file.url, session.file.format);
-  }, [load, session.file.format, session.file.url]);
+    registerPlayheadSync(onPlayheadChange);
 
-  useEffect(() => {
-    onPlayheadChange(currentTime);
-  }, [currentTime, onPlayheadChange]);
+    return () => {
+      registerPlayheadSync(null);
+    };
+  }, [onPlayheadChange, registerPlayheadSync]);
 
-  const handleSeek = useCallback(
+  const handleTransportSeek = useCallback(
     (seconds: number): void => {
       seek(seconds);
       onPlayheadChange(seconds);
@@ -77,9 +82,27 @@ export function SessionView({ session, onClearSession, onPlayheadChange }: Sessi
 
   const handleCueMove = useCallback(
     (cuePoint: CuePoint): void => {
-      updateCuePoint(cuePoint.id, { position: cuePoint.position });
+      const snapDivision = editorSettings.snapDivision;
+      const snappedPosition =
+        session.file.bpm && snapDivision
+          ? snapToBeat(cuePoint.position, session.file.bpm, snapDivision)
+          : cuePoint.position;
+
+      updateCuePoint(cuePoint.id, { position: snappedPosition });
     },
-    [updateCuePoint],
+    [editorSettings.snapDivision, session.file.bpm, updateCuePoint],
+  );
+
+  const handleCueSetAtHotkey = useCallback(
+    (hotkey: number, position: number): void => {
+      const snapDivision = editorSettings.snapDivision;
+      const snappedPosition =
+        session.file.bpm && snapDivision ? snapToBeat(position, session.file.bpm, snapDivision) : position;
+
+      setActiveHotkeySlot(hotkey);
+      setCueAtHotkey(hotkey, snappedPosition);
+    },
+    [editorSettings.snapDivision, session.file.bpm, setActiveHotkeySlot, setCueAtHotkey],
   );
 
   useSessionShortcuts({
@@ -90,12 +113,18 @@ export function SessionView({ session, onClearSession, onPlayheadChange }: Sessi
     isPlaying,
     play,
     pause,
-    seek: handleSeek,
+    seek: handleTransportSeek,
     setIntroIn: () => regionEditor.setBoundary("intro", "start", currentTime),
     setIntroOut: () => regionEditor.setBoundary("intro", "end", currentTime),
     setOutroIn: () => regionEditor.setBoundary("outro", "start", currentTime),
     setOutroOut: () => regionEditor.setBoundary("outro", "end", currentTime),
     toggleLoop: regionEditor.toggleLoopSelection,
+    setLoopIn: () => regionEditor.setLoopIn(currentTime),
+    setLoopOut: () => regionEditor.setLoopOut(currentTime),
+    setCueAtHotkey,
+    scrollToTime: (seconds) => {
+      rawWaveSurfer.current?.setScrollTime(seconds);
+    },
     setActiveCue,
     setActiveRegion,
   });
@@ -122,18 +151,25 @@ export function SessionView({ session, onClearSession, onPlayheadChange }: Sessi
       <ErrorBoundary fallbackTitle="Waveform failed" fallbackMessage="The waveform renderer could not load this track.">
         <WaveformDisplay
           audioUrl={session.file.url}
+          bindPlaybackEngine={bind}
           currentTime={currentTime}
           duration={totalDuration}
           regions={session.regions}
           cuePoints={session.cuePoints}
+          bleepRegions={session.bleepRegions}
+          transitionCues={session.transitionCues}
           bpm={session.file.bpm}
           beatOffset={session.file.beatOffset}
           beatGridVisible={editorSettings.beatGridVisible}
           snapEnabled={editorSettings.snapDivision !== null}
-          onSeek={handleSeek}
+          prepareMode={editorSettings.activeTab === "prepare"}
+          activeHotkeySlot={editorSettings.activeHotkeySlot}
+          isPlaying={isPlaying}
+          onSeek={handleTransportSeek}
           onRegionChange={handleRegionChange}
           onRegionClick={setActiveRegion}
           onCueAdd={addCuePoint}
+          onCueSetAtHotkey={handleCueSetAtHotkey}
           onCueSelect={setActiveCue}
           onCueMove={handleCueMove}
           onCueDelete={removeCuePoint}
@@ -151,7 +187,7 @@ export function SessionView({ session, onClearSession, onPlayheadChange }: Sessi
           hasStems={Object.keys(stems).length > 0}
           onPlay={play}
           onPause={pause}
-          onSeek={handleSeek}
+          onSeek={handleTransportSeek}
           onVolumeChange={setVolume}
           onStemModelChange={setStemModel}
           onStemsComplete={(nextStems) => {
@@ -167,11 +203,14 @@ export function SessionView({ session, onClearSession, onPlayheadChange }: Sessi
           <ExportPanel session={session} stems={stems} onClose={() => setShowExport(false)} />
         </ErrorBoundary>
       ) : null}
-      <SessionEditorPanels
+      <SessionEditorWorkspace
         session={session}
         currentTime={currentTime}
         snapDivision={editorSettings.snapDivision}
+        activeTab={editorSettings.activeTab}
+        onTabChange={setActiveTab}
         activeCueId={editorSettings.activeCueId}
+        activeHotkeySlot={editorSettings.activeHotkeySlot}
         renameCueId={renameCueId}
         showBeatOffset={showBeatOffset}
         showStems={showStems}
@@ -185,8 +224,14 @@ export function SessionView({ session, onClearSession, onPlayheadChange }: Sessi
         onBeatOffsetChange={setBeatOffset}
         onResetBpm={resetBpmOverride}
         onAddCue={addCuePoint}
+        onSetCueAtHotkey={handleCueSetAtHotkey}
+        onClearCueAtHotkey={clearCueAtHotkey}
+        onSelectHotkeySlot={setActiveHotkeySlot}
+        onLoopIn={() => regionEditor.setLoopIn(currentTime)}
+        onLoopOut={() => regionEditor.setLoopOut(currentTime)}
+        onClearLoop={() => regionEditor.clearRegion("loop")}
         onSelectCue={setActiveCue}
-        onSeek={handleSeek}
+        onSeek={handleTransportSeek}
         onRenameCue={(cueId, label) => updateCuePoint(cueId, { label })}
         onRenameHandled={() => setRenameCueId(null)}
         onOpenExport={() => setShowExport(true)}

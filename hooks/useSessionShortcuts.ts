@@ -4,6 +4,7 @@ import { useCallback, useMemo } from "react";
 
 import { useKeyboardShortcuts, type ShortcutHandlers } from "@/hooks/useKeyboardShortcuts";
 import { EDITOR_NUDGE_LARGE_SECONDS, EDITOR_NUDGE_SMALL_SECONDS } from "@/lib/constants";
+import { useUndoStore } from "@/store/undoStore";
 import type { AudioSession } from "@/types/audio";
 
 interface UseSessionShortcutsOptions {
@@ -20,6 +21,10 @@ interface UseSessionShortcutsOptions {
   setOutroIn: () => void;
   setOutroOut: () => void;
   toggleLoop: () => void;
+  setLoopIn: () => void;
+  setLoopOut: () => void;
+  setCueAtHotkey: (hotkey: number, position: number) => void;
+  scrollToTime: (seconds: number) => void;
   setActiveCue: (id: string | null) => void;
   setActiveRegion: (id: string | null) => void;
 }
@@ -38,17 +43,35 @@ export function useSessionShortcuts({
   setOutroIn,
   setOutroOut,
   toggleLoop,
+  setLoopIn,
+  setLoopOut,
+  setCueAtHotkey,
+  scrollToTime,
   setActiveCue,
   setActiveRegion,
 }: UseSessionShortcutsOptions): void {
-  const jumpToCue = useCallback((hotkey: number): void => {
-    const cuePoint = session.cuePoints.find((cue) => cue.hotkey === hotkey);
+  const undo = useUndoStore((state) => state.undo);
+  const redo = useUndoStore((state) => state.redo);
 
-    if (cuePoint) {
-      setActiveCue(cuePoint.id);
-      seek(cuePoint.position);
-    }
-  }, [seek, session.cuePoints, setActiveCue]);
+  const jumpToCue = useCallback(
+    (hotkey: number): void => {
+      const cuePoint = session.cuePoints.find((cue) => cue.hotkey === hotkey);
+
+      if (cuePoint) {
+        setActiveCue(cuePoint.id);
+        seek(cuePoint.position);
+        scrollToTime(Math.max(cuePoint.position - 1, 0));
+      }
+    },
+    [scrollToTime, seek, session.cuePoints, setActiveCue],
+  );
+
+  const setCueAtPlayhead = useCallback(
+    (hotkey: number): void => {
+      setCueAtHotkey(hotkey, currentTime);
+    },
+    [currentTime, setCueAtHotkey],
+  );
 
   const handlers = useMemo<ShortcutHandlers>(
     () => ({
@@ -58,6 +81,8 @@ export function useSessionShortcuts({
       setOutroIn,
       setOutroOut,
       toggleLoop,
+      setLoopIn,
+      setLoopOut,
       nudgeBackwardSmall: () => seek(Math.max(currentTime - EDITOR_NUDGE_SMALL_SECONDS, 0)),
       nudgeForwardSmall: () => seek(Math.min(currentTime + EDITOR_NUDGE_SMALL_SECONDS, totalDuration)),
       nudgeBackwardLarge: () => seek(Math.max(currentTime - EDITOR_NUDGE_LARGE_SECONDS, 0)),
@@ -74,8 +99,38 @@ export function useSessionShortcuts({
       jumpToCue6: () => jumpToCue(6),
       jumpToCue7: () => jumpToCue(7),
       jumpToCue8: () => jumpToCue(8),
+      setCue1: () => setCueAtPlayhead(1),
+      setCue2: () => setCueAtPlayhead(2),
+      setCue3: () => setCueAtPlayhead(3),
+      setCue4: () => setCueAtPlayhead(4),
+      setCue5: () => setCueAtPlayhead(5),
+      setCue6: () => setCueAtPlayhead(6),
+      setCue7: () => setCueAtPlayhead(7),
+      setCue8: () => setCueAtPlayhead(8),
+      undo,
+      redo,
     }),
-    [currentTime, isPlaying, jumpToCue, pause, play, seek, setActiveCue, setActiveRegion, setIntroIn, setIntroOut, setOutroIn, setOutroOut, toggleLoop, totalDuration],
+    [
+      currentTime,
+      isPlaying,
+      jumpToCue,
+      pause,
+      play,
+      redo,
+      seek,
+      setActiveCue,
+      setActiveRegion,
+      setCueAtPlayhead,
+      setIntroIn,
+      setIntroOut,
+      setLoopIn,
+      setLoopOut,
+      setOutroIn,
+      setOutroOut,
+      toggleLoop,
+      totalDuration,
+      undo,
+    ],
   );
 
   useKeyboardShortcuts(handlers, isLoaded);

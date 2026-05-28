@@ -15,6 +15,8 @@ interface RegionEditor {
   extendRegion: (type: RegionType, bars: number) => void;
   trimRegion: (type: RegionType, bars: number) => void;
   toggleLoopSelection: () => void;
+  setLoopIn: (position: number) => void;
+  setLoopOut: (position: number) => void;
 }
 
 interface RegionEditorOptions {
@@ -122,11 +124,46 @@ export function useRegionEditor({ session, snapDivision, updateRegions, setActiv
     });
   }, [commitRegion, session.regions]);
 
+  const setLoopBoundary = useCallback(
+    (boundary: Boundary, position: number): void => {
+      const snappedPosition = getSnappedPosition(position, session.file.bpm, snapDivision);
+      const existingLoop = session.regions.find((region) => region.type === "loop");
+      const defaultSpan =
+        session.file.bpm !== null
+          ? (DEFAULT_BEATS_PER_BAR * 60) / session.file.bpm
+          : REGION_MIN_DURATION_SECONDS * 4;
+
+      if (existingLoop) {
+        commitRegion(
+          clampRegion(
+            {
+              ...existingLoop,
+              [boundary]: snappedPosition,
+            },
+            session.file.durationSeconds,
+          ),
+        );
+        return;
+      }
+
+      const start = boundary === "start" ? snappedPosition : Math.max(snappedPosition - defaultSpan, 0);
+      const end = boundary === "end" ? snappedPosition : Math.min(snappedPosition + defaultSpan, session.file.durationSeconds);
+
+      commitRegion(createRegion("loop", start, end, session.file.durationSeconds));
+    },
+    [commitRegion, session.file.bpm, session.file.durationSeconds, session.regions, snapDivision],
+  );
+
+  const setLoopIn = useCallback((position: number): void => setLoopBoundary("start", position), [setLoopBoundary]);
+  const setLoopOut = useCallback((position: number): void => setLoopBoundary("end", position), [setLoopBoundary]);
+
   return {
     setBoundary,
     clearRegion,
     extendRegion,
     trimRegion,
     toggleLoopSelection,
+    setLoopIn,
+    setLoopOut,
   };
 }

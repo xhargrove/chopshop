@@ -1,7 +1,9 @@
 import { BeatGridLayer } from "@/components/waveform/BeatGridLayer";
+import { BleepRegionLayer } from "@/components/waveform/BleepRegionLayer";
 import { CuePointLayer } from "@/components/waveform/CuePointLayer";
 import { RegionLayer } from "@/components/waveform/RegionLayer";
-import type { CuePoint, WaveformRegion } from "@/types/audio";
+import { TransitionCueLayer } from "@/components/waveform/TransitionCueLayer";
+import type { BleepRegion, CuePoint, TransitionCue, WaveformRegion } from "@/types/audio";
 
 interface WaveformOverlaysProps {
   duration: number;
@@ -9,13 +11,19 @@ interface WaveformOverlaysProps {
   secondsPerPixel: number;
   regions: WaveformRegion[];
   cuePoints: CuePoint[];
+  bleepRegions: BleepRegion[];
+  transitionCues: TransitionCue[];
   bpm: number | null;
   beatOffset: number;
   beatGridVisible: boolean;
   snapEnabled: boolean;
+  scrollOffsetSeconds: number;
+  prepareMode: boolean;
+  activeHotkeySlot: number;
   onRegionChange: (region: WaveformRegion) => void;
   onRegionClick: (regionId: string) => void;
   onCueAdd: (position: number) => void;
+  onCueSetAtHotkey: (hotkey: number, position: number) => void;
   onCueSelect: (cueId: string) => void;
   onCueMove: (cue: CuePoint) => void;
   onCueDelete: (cueId: string) => void;
@@ -28,13 +36,19 @@ export function WaveformOverlays({
   secondsPerPixel,
   regions,
   cuePoints,
+  bleepRegions,
+  transitionCues,
   bpm,
   beatOffset,
   beatGridVisible,
   snapEnabled,
+  scrollOffsetSeconds,
+  prepareMode,
+  activeHotkeySlot,
   onRegionChange,
   onRegionClick,
   onCueAdd,
+  onCueSetAtHotkey,
   onCueSelect,
   onCueMove,
   onCueDelete,
@@ -52,7 +66,7 @@ export function WaveformOverlays({
           beatOffset={beatOffset}
           durationSeconds={duration}
           containerWidthPx={containerWidthPx}
-          scrollOffsetSeconds={0}
+          scrollOffsetSeconds={scrollOffsetSeconds}
           secondsPerPixel={secondsPerPixel}
           visible={beatGridVisible}
         />
@@ -61,7 +75,7 @@ export function WaveformOverlays({
         regions={regions}
         durationSeconds={duration}
         containerWidthPx={containerWidthPx}
-        scrollOffsetSeconds={0}
+        scrollOffsetSeconds={scrollOffsetSeconds}
         secondsPerPixel={secondsPerPixel}
         bpm={bpm}
         snapEnabled={snapEnabled}
@@ -72,14 +86,19 @@ export function WaveformOverlays({
         cuePoints={cuePoints}
         durationSeconds={duration}
         containerWidthPx={containerWidthPx}
-        scrollOffsetSeconds={0}
+        scrollOffsetSeconds={scrollOffsetSeconds}
         secondsPerPixel={secondsPerPixel}
+        prepareMode={prepareMode}
+        activeHotkeySlot={activeHotkeySlot}
         onCueAdd={onCueAdd}
+        onCueSetAtHotkey={onCueSetAtHotkey}
         onCueSelect={onCueSelect}
         onCueMove={onCueMove}
         onCueDelete={onCueDelete}
         onCueRenameRequest={onCueRenameRequest}
       />
+      <BleepRegionLayer regions={bleepRegions} containerWidthPx={containerWidthPx} scrollOffsetSeconds={scrollOffsetSeconds} secondsPerPixel={secondsPerPixel} />
+      <TransitionCueLayer cues={transitionCues} containerWidthPx={containerWidthPx} scrollOffsetSeconds={scrollOffsetSeconds} secondsPerPixel={secondsPerPixel} />
     </>
   );
 }
