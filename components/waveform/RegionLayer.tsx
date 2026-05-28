@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
+import { useCallback, useRef, useState, type PointerEvent } from "react";
+
+import { useCanvasLayer } from "@/hooks/useCanvasLayer";
 
 import { REGION_HANDLE_WIDTH_PX, REGION_MIN_DURATION_SECONDS, WAVEFORM_HEIGHT } from "@/lib/constants";
 import { clampRegion, snapToBeat } from "@/lib/regions";
@@ -59,7 +61,7 @@ export function RegionLayer({
     [containerWidthPx, regions, scrollOffsetSeconds, secondsPerPixel],
   );
 
-  useEffect(() => {
+  useCanvasLayer(() => {
     drawRegions(dragRegionRef.current ?? undefined);
   }, [drawRegions]);
 

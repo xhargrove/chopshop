@@ -2,8 +2,10 @@
 
 import { BeatOffsetControl } from "@/components/editor/BeatOffsetControl";
 import { HotCuePads } from "@/components/editor/HotCuePads";
+import { SmartPrepPanel } from "@/components/editor/SmartPrepPanel";
+import { WorkflowPresetBar } from "@/components/editor/WorkflowPresetBar";
 import { formatTime } from "@/lib/format";
-import type { AudioSession, WaveformRegion } from "@/types/audio";
+import type { AudioSession, WaveformRegion, WorkflowPresetId } from "@/types/audio";
 
 interface PreparePanelProps {
   session: AudioSession;
@@ -22,6 +24,10 @@ interface PreparePanelProps {
   onManualBpm: (bpm: number) => void;
   onResetBpm: () => void;
   onBeatOffsetChange: (offsetSeconds: number) => void;
+  activeWorkflowPreset: WorkflowPresetId | null;
+  lastAutosaveAt: number | null;
+  onApplyWorkflowPreset: (presetId: WorkflowPresetId) => void;
+  onApplySmartPrep: () => void;
 }
 
 const SNAP_OPTIONS: Array<{ value: 1 | 2 | 4 | null; label: string }> = [
@@ -48,16 +54,25 @@ export function PreparePanel({
   onManualBpm,
   onResetBpm,
   onBeatOffsetChange,
+  activeWorkflowPreset,
+  lastAutosaveAt,
+  onApplyWorkflowPreset,
+  onApplySmartPrep,
 }: PreparePanelProps) {
   return (
     <div className="flex flex-col gap-4">
+      <WorkflowPresetBar activePresetId={activeWorkflowPreset} onApplyPreset={onApplyWorkflowPreset} />
+      <SmartPrepPanel session={session} onApply={onApplySmartPrep} />
       <section className="rounded-dropzone border border-border bg-surface p-4" aria-label="Prepare mode">
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="font-display text-3xl tracking-[0.08em] text-text-primary">Prepare</h2>
             <p className="mt-1 font-mono text-xs text-text-muted">
-              Pads: click jump · empty sets at playhead · Shift+click clear. Scroll the waveform or overview to move through the track. Shift+wheel zooms.
+              Pads: click jump · empty sets at playhead · Shift+click clear · auto-advances slot. Keys 1–8 jump, Shift+1–8 set.
             </p>
+            {lastAutosaveAt ? (
+              <p className="mt-1 font-mono text-[10px] text-text-muted">Autosaved {new Date(lastAutosaveAt).toLocaleTimeString()}</p>
+            ) : null}
           </div>
           <div className="flex flex-wrap gap-2" role="group" aria-label="Snap to grid">
             {SNAP_OPTIONS.map((option) => (

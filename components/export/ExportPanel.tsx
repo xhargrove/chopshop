@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useExport } from "@/hooks/useExport";
+import { useAudioStore } from "@/store/audioStore";
 import { EXPORT_MP3_BITRATES } from "@/lib/constants";
 import type { AudioSession, WaveformRegion } from "@/types/audio";
 import type { ExportFormat, ExportRegion, Mp3Bitrate, StemExportFormat } from "@/types/audioExport";
@@ -35,13 +36,24 @@ const getRegionOptions = (regions: WaveformRegion[]): Array<{ label: string; val
 const getRegionLabel = (region: ExportRegion): string => (typeof region === "string" ? region : "selection");
 
 export function ExportPanel({ session, stems, onClose }: ExportPanelProps) {
-  const { exportFiles, isExporting, progress } = useExport();
-  const [region, setRegion] = useState<ExportRegion>("full");
-  const [format, setFormat] = useState<ExportFormat>("wav");
-  const [mp3Bitrate, setMp3Bitrate] = useState<Mp3Bitrate>(320);
-  const [includeStems, setIncludeStems] = useState<StemExportFormat>(false);
-  const [exportRekordbox, setExportRekordbox] = useState(false);
-  const [exportSerato, setExportSerato] = useState(false);
+  const { exportFiles, isExporting, progress, exportError, lastVerification } = useExport();
+  const exportDefaults = useAudioStore((state) => state.editorSettings.exportDefaults);
+  const activeWorkflowPreset = useAudioStore((state) => state.editorSettings.activeWorkflowPreset);
+  const [region, setRegion] = useState<ExportRegion>(exportDefaults.region);
+  const [format, setFormat] = useState<ExportFormat>(exportDefaults.format);
+  const [mp3Bitrate, setMp3Bitrate] = useState<Mp3Bitrate>(exportDefaults.mp3Bitrate);
+  const [includeStems, setIncludeStems] = useState<StemExportFormat>(exportDefaults.includeStems);
+  const [exportRekordbox, setExportRekordbox] = useState(exportDefaults.exportRekordbox);
+  const [exportSerato, setExportSerato] = useState(exportDefaults.exportSerato);
+
+  useEffect(() => {
+    setRegion(exportDefaults.region);
+    setFormat(exportDefaults.format);
+    setMp3Bitrate(exportDefaults.mp3Bitrate);
+    setIncludeStems(exportDefaults.includeStems);
+    setExportRekordbox(exportDefaults.exportRekordbox);
+    setExportSerato(exportDefaults.exportSerato);
+  }, [exportDefaults, activeWorkflowPreset]);
   const hasStems = Object.keys(stems).length > 0;
   const baseName = sanitizeTrackName(session.file.name);
   const regionLabel = getRegionLabel(region);
@@ -72,7 +84,7 @@ export function ExportPanel({ session, stems, onClose }: ExportPanelProps) {
   }, [baseName, exportRekordbox, exportSerato, format, includeStems, regionLabel]);
 
   const handleExport = (): void => {
-    void exportFiles(session, { region, format, mp3Bitrate, includeStems, stems, exportRekordbox, exportSerato });
+    void exportFiles(session, { region, format, mp3Bitrate, includeStems, stems, exportRekordbox, exportSerato }).catch(() => undefined);
   };
 
   return (
@@ -145,6 +157,23 @@ export function ExportPanel({ session, stems, onClose }: ExportPanelProps) {
         ))}
       </div>
       {isExporting ? <progress className="mt-4 h-2 w-full accent-accent" max={100} value={progress} /> : null}
+      {exportError ? (
+        <p className="mt-4 rounded-dropzone border border-border bg-background px-3 py-2 font-body text-sm text-accent" role="alert">
+          {exportError}
+        </p>
+      ) : null}
+      {lastVerification ? (
+        <div className="mt-4 rounded-dropzone border border-border bg-background p-3 font-mono text-xs text-text-muted">
+          <p className="mb-2 uppercase tracking-[0.2em]">{lastVerification.passed ? "Export verified" : "Export verification issues"}</p>
+          <ul className="space-y-1">
+            {lastVerification.checks.map((check) => (
+              <li key={check.id} className={check.passed ? "text-text-muted" : "text-accent"}>
+                {check.passed ? "✓" : "✗"} {check.label}: {check.detail}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <button type="button" className="mt-4 rounded-dropzone bg-accent px-5 py-3 font-mono text-xs uppercase text-background" onClick={handleExport} disabled={isExporting || Boolean(includeStems && !hasStems)}>
         Export - {previews.length} files
       </button>

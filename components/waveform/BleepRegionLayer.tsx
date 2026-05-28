@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
+
+import { useCanvasLayer } from "@/hooks/useCanvasLayer";
 
 import { WAVEFORM_HEIGHT } from "@/lib/constants";
 import { drawBleepRegionCanvas, prepareCanvas } from "@/lib/waveformCanvas";
@@ -32,9 +34,7 @@ export function BleepRegionLayer({ regions, containerWidthPx, scrollOffsetSecond
     drawBleepRegionCanvas(context, regions, containerWidthPx, WAVEFORM_HEIGHT, scrollOffsetSeconds, secondsPerPixel);
   }, [containerWidthPx, regions, scrollOffsetSeconds, secondsPerPixel]);
 
-  useEffect(() => {
-    draw();
-  }, [draw]);
+  useCanvasLayer(draw, [draw]);
 
   return <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-20 h-full w-full" aria-hidden />;
 }

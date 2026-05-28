@@ -12,12 +12,14 @@ import { TransitionCuePanel } from "@/components/editor/TransitionCuePanel";
 import { StemPlayer } from "@/components/stems/StemPlayer";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { useAudioStore } from "@/store/audioStore";
-import type { AudioSession, BleepMode, EditorTabId, WaveformRegion } from "@/types/audio";
+import type { AudioSession, BleepMode, EditorTabId, WaveformRegion, WorkflowPresetId } from "@/types/audio";
 import type { StemType } from "@/types/stems";
 
 interface SessionEditorWorkspaceProps {
   session: AudioSession;
   currentTime: number;
+  durationSeconds: number;
+  isPlaying: boolean;
   snapDivision: 1 | 2 | 4 | null;
   activeTab: EditorTabId;
   activeCueId: string | null;
@@ -47,6 +49,11 @@ interface SessionEditorWorkspaceProps {
   onRenameCue: (cueId: string, label: string) => void;
   onRenameHandled: () => void;
   onOpenExport: () => void;
+  onScrollToCue: (seconds: number) => void;
+  activeWorkflowPreset: WorkflowPresetId | null;
+  lastAutosaveAt: number | null;
+  onApplyWorkflowPreset: (presetId: WorkflowPresetId) => void;
+  onApplySmartPrep: () => void;
 }
 
 export function SessionEditorWorkspace(props: SessionEditorWorkspaceProps) {
@@ -75,6 +82,7 @@ export function SessionEditorWorkspace(props: SessionEditorWorkspaceProps) {
             if (cue) {
               props.onSelectCue(cue.id);
               props.onSeek(cue.position);
+              props.onScrollToCue(cue.position);
             }
           }}
           onClearCue={props.onClearCueAtHotkey}
@@ -85,6 +93,10 @@ export function SessionEditorWorkspace(props: SessionEditorWorkspaceProps) {
           onManualBpm={(bpm) => props.onBpmChange(bpm)}
           onResetBpm={props.onResetBpm}
           onBeatOffsetChange={props.onBeatOffsetChange}
+          activeWorkflowPreset={props.activeWorkflowPreset}
+          lastAutosaveAt={props.lastAutosaveAt}
+          onApplyWorkflowPreset={props.onApplyWorkflowPreset}
+          onApplySmartPrep={props.onApplySmartPrep}
         />
       ) : null}
       {props.activeTab === "edit" ? (
@@ -119,7 +131,14 @@ export function SessionEditorWorkspace(props: SessionEditorWorkspaceProps) {
           ) : null}
           {props.showStems && Object.keys(props.stems).length > 0 ? (
             <ErrorBoundary fallbackTitle="Stem player failed" fallbackMessage="Stem playback controls could not render.">
-              <StemPlayer stems={props.stems} onExportStems={props.onOpenExport} onMixToStereo={props.onOpenExport} />
+              <StemPlayer
+                stems={props.stems}
+                currentTime={props.currentTime}
+                durationSeconds={props.durationSeconds}
+                isPlaying={props.isPlaying}
+                onExportStems={props.onOpenExport}
+                onMixToStereo={props.onOpenExport}
+              />
             </ErrorBoundary>
           ) : null}
           <ErrorBoundary fallbackTitle="Cue panel failed" fallbackMessage="Cue point controls could not render.">

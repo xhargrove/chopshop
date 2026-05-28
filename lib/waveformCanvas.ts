@@ -49,10 +49,15 @@ export const prepareCanvas = (
     return null;
   }
 
-  const pixelRatio = window.devicePixelRatio || 1;
-  canvas.width = containerWidthPx * pixelRatio;
-  canvas.height = heightPx * pixelRatio;
-  context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  const pixelRatio = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+  const targetWidth = Math.max(1, Math.round(containerWidthPx * pixelRatio));
+  const targetHeight = Math.max(1, Math.round(heightPx * pixelRatio));
+
+  if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  }
   context.clearRect(0, 0, containerWidthPx, heightPx);
 
   return context;
@@ -101,6 +106,7 @@ export const drawCueCanvas = (
   scrollOffsetSeconds: number,
   secondsPerPixel: number,
   overrideCue?: CuePoint,
+  activeHotkeySlot?: number,
 ): void => {
   context.font = `${CUE_MARKER_SIZE_PX}px var(--font-dm-mono), monospace`;
   context.textAlign = "center";
@@ -133,6 +139,14 @@ export const drawCueCanvas = (
       context.fillRect(x - CUE_BADGE_SIZE_PX / 2, CUE_MARKER_SIZE_PX * 2, CUE_BADGE_SIZE_PX, CUE_BADGE_SIZE_PX);
       context.fillStyle = DESIGN_COLORS.textPrimary;
       context.fillText(String(cuePoint.hotkey), x, CUE_MARKER_SIZE_PX * 2 + CUE_BADGE_SIZE_PX / 2);
+    }
+
+    if (cuePoint.hotkey === activeHotkeySlot) {
+      context.strokeStyle = DESIGN_COLORS.accent;
+      context.lineWidth = 2;
+      context.setLineDash([]);
+      context.strokeRect(x - CUE_BADGE_SIZE_PX, 0, CUE_BADGE_SIZE_PX * 2, heightPx);
+      context.lineWidth = 1;
     }
   });
 };

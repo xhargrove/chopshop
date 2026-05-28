@@ -13,6 +13,7 @@ import { WaveformDisplay } from "@/components/waveform/WaveformDisplay";
 import { useAudioEngine } from "@/hooks/useAudioEngine";
 import { useRegionEditor } from "@/hooks/useRegionEditor";
 import { useSessionAudioAnalysis } from "@/hooks/useSessionAudioAnalysis";
+import { useSessionAutosave } from "@/hooks/useSessionAutosave";
 import { useSessionShortcuts } from "@/hooks/useSessionShortcuts";
 import { snapToBeat } from "@/lib/regions";
 import { useAudioStore } from "@/store/audioStore";
@@ -45,6 +46,8 @@ export function SessionView({ session, onClearSession, onPlayheadChange }: Sessi
   const setBeatGridVisible = useAudioStore((state) => state.setBeatGridVisible);
   const setStemModel = useAudioStore((state) => state.setStemModel);
   const setActiveTab = useAudioStore((state) => state.setActiveTab);
+  const applyWorkflowPreset = useAudioStore((state) => state.applyWorkflowPreset);
+  const applySmartPrep = useAudioStore((state) => state.applySmartPrep);
   const [renameCueId, setRenameCueId] = useState<string | null>(null);
   const [showBeatOffset, setShowBeatOffset] = useState(false);
   const [showExport, setShowExport] = useState(false);
@@ -53,6 +56,7 @@ export function SessionView({ session, onClearSession, onPlayheadChange }: Sessi
   const totalDuration = duration || session.file.durationSeconds;
   const regionEditor = useRegionEditor({ session, snapDivision: editorSettings.snapDivision, updateRegions, setActiveRegion });
   const analysis = useSessionAudioAnalysis(session);
+  useSessionAutosave();
 
   useEffect(() => {
     registerPlayheadSync(onPlayheadChange);
@@ -206,6 +210,8 @@ export function SessionView({ session, onClearSession, onPlayheadChange }: Sessi
       <SessionEditorWorkspace
         session={session}
         currentTime={currentTime}
+        durationSeconds={totalDuration}
+        isPlaying={isPlaying}
         snapDivision={editorSettings.snapDivision}
         activeTab={editorSettings.activeTab}
         onTabChange={setActiveTab}
@@ -235,6 +241,13 @@ export function SessionView({ session, onClearSession, onPlayheadChange }: Sessi
         onRenameCue={(cueId, label) => updateCuePoint(cueId, { label })}
         onRenameHandled={() => setRenameCueId(null)}
         onOpenExport={() => setShowExport(true)}
+        onScrollToCue={(seconds) => {
+          rawWaveSurfer.current?.setScrollTime(Math.max(seconds - 1, 0));
+        }}
+        activeWorkflowPreset={editorSettings.activeWorkflowPreset}
+        lastAutosaveAt={editorSettings.lastAutosaveAt}
+        onApplyWorkflowPreset={applyWorkflowPreset}
+        onApplySmartPrep={applySmartPrep}
       />
     </section>
   );

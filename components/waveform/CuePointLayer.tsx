@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
+import { useCallback, useRef, useState, type PointerEvent } from "react";
+
+import { useCanvasLayer } from "@/hooks/useCanvasLayer";
 
 import { ContextMenu } from "@/components/menus/ContextMenu";
 import { CUE_MARKER_SIZE_PX, WAVEFORM_HEIGHT } from "@/lib/constants";
@@ -63,13 +65,13 @@ export function CuePointLayer({
       const context = prepareCanvas(canvas, containerWidthPx, WAVEFORM_HEIGHT);
 
       if (context) {
-        drawCueCanvas(context, cuePoints, containerWidthPx, WAVEFORM_HEIGHT, scrollOffsetSeconds, secondsPerPixel, overrideCue);
+        drawCueCanvas(context, cuePoints, containerWidthPx, WAVEFORM_HEIGHT, scrollOffsetSeconds, secondsPerPixel, overrideCue, activeHotkeySlot);
       }
     },
-    [containerWidthPx, cuePoints, scrollOffsetSeconds, secondsPerPixel],
+    [activeHotkeySlot, containerWidthPx, cuePoints, scrollOffsetSeconds, secondsPerPixel],
   );
 
-  useEffect(() => {
+  const scheduleDraw = useCanvasLayer(() => {
     drawCuePoints(draftCueRef.current ?? undefined);
   }, [drawCuePoints]);
 
@@ -143,9 +145,9 @@ export function CuePointLayer({
       };
 
       draftCueRef.current = nextCue;
-      drawCuePoints(nextCue);
+      scheduleDraw();
     },
-    [drawCuePoints, getPointerPosition, hitTest],
+    [getPointerPosition, hitTest, scheduleDraw],
   );
 
   const handlePointerUp = useCallback(

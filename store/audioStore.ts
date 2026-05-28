@@ -17,8 +17,27 @@ import {
   MIN_BPM,
   VALID_CAMELOT_VALUES,
 } from "@/lib/constants";
+import { audioBufferCache } from "@/lib/audioBufferCache";
+import { createExportDefaultsFromPreset, DEFAULT_EXPORT_DEFAULTS } from "@/lib/export/exportDefaults";
+import { clearSessionSnapshot, findMatchingSnapshot, mergeSnapshotIntoSession } from "@/lib/sessionPersistence";
+import { generateSmartPrepDraft, mergeSmartPrepDraft } from "@/lib/smartPrep";
+import { getWorkflowPreset } from "@/lib/workflowPresets";
 import { registerUndoSessionAccessors, useUndoStore } from "@/store/undoStore";
-import type { AcapellaSwapCommit, AudioFile, AudioFormat, AudioSession, BleepMode, BleepRegion, CuePoint, EditorSettings, EditorTabId, MetadataSource, TransitionCue, WaveformRegion } from "@/types/audio";
+import type {
+  AcapellaSwapCommit,
+  AudioFile,
+  AudioFormat,
+  AudioSession,
+  BleepMode,
+  BleepRegion,
+  CuePoint,
+  EditorSettings,
+  EditorTabId,
+  MetadataSource,
+  TransitionCue,
+  WaveformRegion,
+  WorkflowPresetId,
+} from "@/types/audio";
 
 export interface AudioStore {
   session: AudioSession | null;
@@ -54,6 +73,9 @@ export interface AudioStore {
   removeCuePoint: (id: string) => void;
   updateCuePoint: (id: string, updates: Partial<CuePoint>) => void;
   setActiveHotkeySlot: (hotkey: number) => void;
+  applyWorkflowPreset: (presetId: WorkflowPresetId) => void;
+  applySmartPrep: () => void;
+  markAutosaved: (timestamp: number) => void;
 }
 
 const createInitialEditorSettings = (): EditorSettings => ({
@@ -64,7 +86,12 @@ const createInitialEditorSettings = (): EditorSettings => ({
   beatGridVisible: true,
   stemModel: DEFAULT_STEM_MODEL,
   activeTab: "prepare",
+  activeWorkflowPreset: "serato-prep",
+  lastAutosaveAt: null,
+  exportDefaults: DEFAULT_EXPORT_DEFAULTS,
 });
+
+const getNextHotkeySlot = (currentSlot: number): number => (currentSlot % MAX_HOTKEY_CUE_POINTS) + 1;
 
 const roundBpm = (bpm: number): number => Number(Math.min(Math.max(bpm, MIN_BPM), MAX_BPM).toFixed(2));
 
@@ -85,17 +112,6 @@ const getAudioFormat = (fileName: string): AudioFormat => {
   return AUDIO_EXTENSION_FORMATS[extension];
 };
 
-const decodeDuration = async (file: File): Promise<number> => {
-  const audioContext = new AudioContext();
-
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-    return audioBuffer.duration;
-  } finally {
-    await audioContext.close();
-  }
-};
 
 const revokeSessionUrl = (session: AudioSession | null): void => {
   if (session) {
@@ -123,7 +139,9 @@ export const useAudioStore = create<AudioStore>()(
     // PHASE 2 CHANGE: Editor settings live beside the audio session so panels and overlays share selection/snap state.
     editorSettings: createInitialEditorSettings(),
     loadFile: async (file: File): Promise<void> => {
-      const durationSeconds = await decodeDuration(file);
+      audioBufferCache.invalidate();
+      const { buffer } = await audioBufferCache.getOrDecode(file);
+      const durationSeconds = buffer.duration;
       const nextUrl = URL.createObjectURL(file);
       const previousSession = get().session;
 
@@ -161,14 +179,72 @@ export const useAudioStore = create<AudioStore>()(
           autoKey: null,
         };
       });
+
+      const snapshot = findMatchingSnapshot(file);
+      const currentSession = get().session;
+
+      if (snapshot && currentSession) {
+        pushUndoSnapshot(currentSession, "Restore autosave");
+        set((state) => {
+          if (!state.session) {
+            return;
+          }
+
+          state.session = mergeSnapshotIntoSession(state.session, snapshot);
+          state.editorSettings = {
+            ...createInitialEditorSettings(),
+            ...snapshot.editorSettings,
+            exportDefaults: snapshot.editorSettings.exportDefaults ?? DEFAULT_EXPORT_DEFAULTS,
+            lastAutosaveAt: snapshot.savedAt,
+          };
+        });
+      }
     },
     clearSession: (): void => {
       revokeSessionUrl(get().session);
       useUndoStore.getState().clear();
+      clearSessionSnapshot();
+      audioBufferCache.invalidate();
 
       set((state) => {
         state.session = null;
         state.editorSettings = createInitialEditorSettings();
+      });
+    },
+    markAutosaved: (timestamp: number): void => {
+      set((state) => {
+        state.editorSettings.lastAutosaveAt = timestamp;
+      });
+    },
+    applyWorkflowPreset: (presetId: WorkflowPresetId): void => {
+      const preset = getWorkflowPreset(presetId);
+
+      if (!preset) {
+        return;
+      }
+
+      set((state) => {
+        state.editorSettings.activeTab = preset.activeTab;
+        state.editorSettings.snapDivision = preset.snapDivision;
+        state.editorSettings.beatGridVisible = preset.beatGridVisible;
+        state.editorSettings.activeWorkflowPreset = presetId;
+        state.editorSettings.exportDefaults = createExportDefaultsFromPreset(preset);
+      });
+    },
+    applySmartPrep: (): void => {
+      const session = get().session;
+
+      if (!session) {
+        return;
+      }
+
+      pushUndoSnapshot(session, "Apply Smart Prep");
+      const draft = generateSmartPrepDraft(session);
+
+      set((state) => {
+        if (state.session) {
+          state.session = mergeSmartPrepDraft(state.session, draft);
+        }
       });
     },
     updateRegions: (regions: WaveformRegion[]): void => {
@@ -409,6 +485,7 @@ export const useAudioStore = create<AudioStore>()(
         if (existing) {
           existing.position = position;
           state.editorSettings.activeCueId = existing.id;
+          state.editorSettings.activeHotkeySlot = getNextHotkeySlot(hotkey);
           return;
         }
 
@@ -422,7 +499,7 @@ export const useAudioStore = create<AudioStore>()(
 
         state.session.cuePoints.push(cuePoint);
         state.editorSettings.activeCueId = cuePoint.id;
-        state.editorSettings.activeHotkeySlot = hotkey;
+        state.editorSettings.activeHotkeySlot = getNextHotkeySlot(hotkey);
       });
     },
     clearCueAtHotkey: (hotkey: number): void => {

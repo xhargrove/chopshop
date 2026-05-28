@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 
 import { useAudioAnalysis, type UseAudioAnalysisReturn } from "@/hooks/useAudioAnalysis";
+import { audioBufferCache } from "@/lib/audioBufferCache";
 import type { AudioSession } from "@/types/audio";
 
 export function useSessionAudioAnalysis(session: AudioSession): UseAudioAnalysisReturn {
@@ -20,11 +21,10 @@ export function useSessionAudioAnalysis(session: AudioSession): UseAudioAnalysis
 
     const loadForAnalysis = async (): Promise<void> => {
       try {
-        const response = await fetch(session.file.url);
-        const audioBuffer = await response.arrayBuffer();
+        const { analysisBytes, buffer } = await audioBufferCache.getOrDecode(session.file.sourceFile);
 
         if (!isCancelled) {
-          analyze(audioBuffer, 0);
+          analyze(analysisBytes, buffer.sampleRate);
         }
       } catch {
         reset();
@@ -37,7 +37,7 @@ export function useSessionAudioAnalysis(session: AudioSession): UseAudioAnalysis
       isCancelled = true;
       cancel();
     };
-  }, [analyze, cancel, reset, session.file.id, session.file.url]);
+  }, [analyze, cancel, reset, session.file.id, session.file.sourceFile]);
 
   return analysis;
 }

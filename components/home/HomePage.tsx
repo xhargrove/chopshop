@@ -6,6 +6,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { SessionView } from "@/components/session/SessionView";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { DropZone } from "@/components/upload/DropZone";
+import { loadSessionSnapshot } from "@/lib/sessionPersistence";
 import { useAudioStore } from "@/store/audioStore";
 
 const getErrorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error));
@@ -17,6 +18,7 @@ export function HomePage() {
   const setPlayhead = useAudioStore((state) => state.setPlayhead);
   const [isLoading, setIsLoading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const recoverySnapshot = loadSessionSnapshot();
 
   const handleFileAccepted = useCallback(
     async (file: File): Promise<void> => {
@@ -40,6 +42,11 @@ export function HomePage() {
         <ErrorBoundary fallbackTitle="Upload area failed" fallbackMessage="Refresh the page to try loading a track again.">
           <section className="flex flex-1 flex-col items-center justify-center" aria-label="Upload a track">
             <DropZone onFileAccepted={(file) => void handleFileAccepted(file)} isLoading={isLoading} />
+            {recoverySnapshot ? (
+              <p className="mt-4 w-full max-w-3xl rounded-dropzone border border-border bg-surface px-4 py-3 font-mono text-xs text-text-muted">
+                Recovery available for <span className="text-text-primary">{recoverySnapshot.fileMeta.name}</span>. Re-select the same file to restore cues and regions.
+              </p>
+            ) : null}
             {uploadError ? (
               <p className="mt-4 w-full max-w-3xl rounded-dropzone border border-border bg-surface px-4 py-3 font-body text-sm text-accent" role="alert">
                 {uploadError}

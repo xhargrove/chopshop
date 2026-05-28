@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { audioBufferCache, cloneAudioBufferToStereo } from "@/lib/audioBufferCache";
 import { applyBleepRegions } from "@/lib/bleepEdit";
+import { verifySessionExports, type ExportVerificationReport } from "@/lib/exportVerification";
 import { generateRekordboxXml } from "@/lib/export/rekordboxXml";
 import { generateSeratoCueExport } from "@/lib/export/seratoExport";
 import { ANALYSIS_PROGRESS_COMPLETE, EXPORT_DOWNLOAD_STAGGER_MS, EXPORT_OBJECT_URL_REVOKE_MS } from "@/lib/constants";
@@ -13,7 +15,9 @@ import type { StemType } from "@/types/stems";
 interface UseExportReturn {
   isExporting: boolean;
   progress: number;
-  exportFiles: (session: AudioSession, options: ExportOptions) => Promise<void>;
+  exportError: string | null;
+  lastVerification: ExportVerificationReport | null;
+  exportFiles: (session: AudioSession, options: ExportOptions) => Promise<ExportVerificationReport>;
   cancel: () => void;
 }
 
@@ -49,27 +53,8 @@ const getRegionBounds = (session: AudioSession, region: ExportOptions["region"])
   return { start: 0, end: session.file.durationSeconds, label: "full" };
 };
 
-const copyChannel = (audioBuffer: AudioBuffer, channelIndex: number, startFrame: number, frameCount: number): Float32Array => {
-  const data = new Float32Array(frameCount);
-  audioBuffer.copyFromChannel(data, Math.min(channelIndex, audioBuffer.numberOfChannels - 1), startFrame);
-  return data;
-};
-
-const audioBufferToStereo = (audioBuffer: AudioBuffer, startSeconds = 0, endSeconds = audioBuffer.duration): Float32Array => {
-  const startFrame = Math.max(0, Math.floor(startSeconds * audioBuffer.sampleRate));
-  const endFrame = Math.min(audioBuffer.length, Math.ceil(endSeconds * audioBuffer.sampleRate));
-  const frameCount = Math.max(endFrame - startFrame, 0);
-  const left = copyChannel(audioBuffer, 0, startFrame, frameCount);
-  const right = copyChannel(audioBuffer, audioBuffer.numberOfChannels > 1 ? 1 : 0, startFrame, frameCount);
-  const interleaved = new Float32Array(frameCount * 2);
-
-  for (let frame = 0; frame < frameCount; frame += 1) {
-    interleaved[frame * 2] = left[frame];
-    interleaved[frame * 2 + 1] = right[frame];
-  }
-
-  return interleaved;
-};
+const audioBufferToStereo = (audioBuffer: AudioBuffer, startSeconds = 0, endSeconds = audioBuffer.duration): Float32Array =>
+  cloneAudioBufferToStereo(audioBuffer, startSeconds, endSeconds);
 
 const downloadFiles = (files: readonly EncodedFile[]): void => {
   files.forEach((file, index) => {
@@ -89,6 +74,8 @@ export function useExport(): UseExportReturn {
   const pendingRef = useRef<PendingExport | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [lastVerification, setLastVerification] = useState<ExportVerificationReport | null>(null);
 
   const createWorker = useCallback((): Worker => {
     const worker = new Worker(new URL("../workers/audioExport.worker.ts", import.meta.url));
@@ -153,13 +140,13 @@ export function useExport(): UseExportReturn {
   }, []);
 
   const exportFiles = useCallback(
-    async (session: AudioSession, options: ExportOptions): Promise<void> => {
+    async (session: AudioSession, options: ExportOptions): Promise<ExportVerificationReport> => {
       setIsExporting(true);
       setProgress(0);
+      setExportError(null);
 
       try {
-        const audioContext = new AudioContext();
-        const sourceBuffer = await audioContext.decodeAudioData(await session.file.sourceFile.arrayBuffer());
+        const { buffer: sourceBuffer } = await audioBufferCache.getOrDecode(session.file.sourceFile);
         const region = getRegionBounds(session, options.region);
         const baseName = sanitizeTrackName(session.file.name);
         const files: EncodedFile[] = [];
@@ -217,9 +204,20 @@ export function useExport(): UseExportReturn {
           }
         }
 
-        await audioContext.close();
+        const verification = verifySessionExports(session);
+        setLastVerification(verification);
+
+        if (!verification.passed) {
+          throw new Error("Export verification failed. Review the checks below before using these files in your DJ software.");
+        }
+
         downloadFiles(files);
         setProgress(ANALYSIS_PROGRESS_COMPLETE);
+        return verification;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        setExportError(message);
+        throw error;
       } finally {
         setIsExporting(false);
       }
@@ -239,6 +237,8 @@ export function useExport(): UseExportReturn {
   return {
     isExporting,
     progress,
+    exportError,
+    lastVerification,
     exportFiles,
     cancel,
   };

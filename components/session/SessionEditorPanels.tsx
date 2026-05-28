@@ -89,7 +89,14 @@ export function SessionEditorPanels({
       ) : null}
       {showStems && Object.keys(stems).length > 0 ? (
         <ErrorBoundary fallbackTitle="Stem player failed" fallbackMessage="Stem playback controls could not render.">
-          <StemPlayer stems={stems} onExportStems={onOpenExport} onMixToStereo={onOpenExport} />
+          <StemPlayer
+            stems={stems}
+            currentTime={currentTime}
+            durationSeconds={session.file.durationSeconds}
+            isPlaying={false}
+            onExportStems={onOpenExport}
+            onMixToStereo={onOpenExport}
+          />
         </ErrorBoundary>
       ) : null}
       <ErrorBoundary fallbackTitle="Cue panel failed" fallbackMessage="Cue point controls could not render.">

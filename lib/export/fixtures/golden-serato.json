@@ -1,0 +1,29 @@
+{
+  "version": "1.0",
+  "track": {
+    "name": "fixture.wav",
+    "bpm": 128,
+    "key": "8A"
+  },
+  "cuePoints": [
+    {
+      "index": 1,
+      "positionMs": 1500,
+      "color": "#FF3D00",
+      "label": "Cue 1"
+    }
+  ],
+  "transitionCues": [
+    {
+      "type": "mix-in",
+      "positionMs": 10000,
+      "windowMs": 4000,
+      "label": "Mix in"
+    }
+  ],
+  "loop": {
+    "inMs": 8000,
+    "outMs": 16000
+  },
+  "exportedAt": "2026-01-01T00:00:00.000Z"
+}

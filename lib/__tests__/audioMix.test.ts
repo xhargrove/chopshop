@@ -17,16 +17,20 @@ describe("audio mix utilities", () => {
   });
 
   it("detects positive offset when the second signal is delayed", () => {
-    const sampleRate = 44100;
-    const length = sampleRate;
+    const sampleRate = 1000;
+    const length = 1000;
+    const delayFrames = 200;
     const bufferA = new Float32Array(length);
     const bufferB = new Float32Array(length);
 
     for (let index = 0; index < length; index += 1) {
       bufferA[index] = Math.sin((2 * Math.PI * 220 * index) / sampleRate);
-      bufferB[index] = index < 200 ? 0 : bufferA[index - 200];
+      bufferB[index] = index < delayFrames ? 0 : bufferA[index - delayFrames];
     }
 
-    expect(detectOffsetFromMono(bufferA, bufferB, sampleRate)).toBeCloseTo(200 / sampleRate, 2);
+    expect(detectOffsetFromMono(bufferA, bufferB, sampleRate)).toBeCloseTo(
+      delayFrames / sampleRate,
+      2,
+    );
   });
 });

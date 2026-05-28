@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { useAcapellaSwap } from "@/hooks/useAcapellaSwap";
+import { audioBufferCache } from "@/lib/audioBufferCache";
 import type { AudioSession } from "@/types/audio";
 import type { StemType } from "@/types/stems";
 
@@ -23,9 +24,7 @@ export function AcapellaSwap({ session, stems, onCommit, onClear }: AcapellaSwap
     let isMounted = true;
 
     const decodeTrack = async (): Promise<void> => {
-      const context = new AudioContext();
-      const buffer = await context.decodeAudioData(await session.file.sourceFile.arrayBuffer());
-      await context.close();
+      const { buffer } = await audioBufferCache.getOrDecode(session.file.sourceFile);
 
       if (isMounted) {
         setTrackBuffer(buffer);

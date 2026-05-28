@@ -56,6 +56,20 @@ export function generateRekordboxXml(session: AudioSession, editName: string = "
     track.appendChild(mark);
   });
 
+  const loopRegion = session.regions.find((region) => region.type === "loop");
+
+  if (loopRegion) {
+    const loopMark = doc.createElement("POSITION_MARK");
+    setAttributes(loopMark, {
+      Name: loopRegion.label,
+      Type: "3",
+      Start: loopRegion.start.toFixed(3),
+      End: loopRegion.end.toFixed(3),
+      Num: "-1",
+    });
+    track.appendChild(loopMark);
+  }
+
   session.transitionCues.forEach((transitionCue) => {
     const mark = doc.createElement("POSITION_MARK");
     setAttributes(mark, {

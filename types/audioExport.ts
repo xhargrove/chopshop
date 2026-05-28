@@ -5,6 +5,15 @@ export type StemExportFormat = false | "wav" | "mp3";
 export type Mp3Bitrate = 128 | 192 | 320;
 export type ExportRegion = "full" | "intro" | "outro" | { start: number; end: number };
 
+export interface ExportDefaults {
+  region: ExportRegion;
+  format: ExportFormat;
+  mp3Bitrate: Mp3Bitrate;
+  includeStems: StemExportFormat;
+  exportSerato: boolean;
+  exportRekordbox: boolean;
+}
+
 export interface ExportOptions {
   region: ExportRegion;
   format: ExportFormat;

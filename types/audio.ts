@@ -1,7 +1,18 @@
+import type { ExportDefaults } from "@/types/audioExport";
+
 export type AudioFormat = "wav" | "mp3" | "aiff" | "flac";
 export type MetadataSource = "auto" | "manual";
 export type BleepMode = "bleep" | "mute" | "duck";
 export type EditorTabId = "prepare" | "edit" | "clean" | "swap" | "transition" | "history";
+
+export type WorkflowPresetId =
+  | "club-intro"
+  | "quick-mix-outro"
+  | "radio-clean"
+  | "festival-transition"
+  | "acapella-swap"
+  | "serato-prep"
+  | "rekordbox-prep";
 
 export interface AudioFile {
   id: string;
@@ -85,4 +96,7 @@ export interface EditorSettings {
   beatGridVisible: boolean;
   stemModel: "2stems" | "4stems";
   activeTab: EditorTabId;
+  activeWorkflowPreset: WorkflowPresetId | null;
+  lastAutosaveAt: number | null;
+  exportDefaults: ExportDefaults;
 }

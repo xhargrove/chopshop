@@ -32,6 +32,17 @@ const session = {
 } satisfies AudioSession;
 
 describe("Serato export", () => {
+  it("exports loop markers when a loop region exists", () => {
+    const withLoop = {
+      ...session,
+      regions: [{ id: "loop", start: 8, end: 16, type: "loop", color: "#69FF47", label: "Loop" }],
+    } satisfies AudioSession;
+    const exported = generateSeratoCueExport(withLoop, "2026-01-01T00:00:00.000Z");
+
+    expect(exported.loop?.inMs).toBe(8000);
+    expect(exported.loop?.outMs).toBe(16000);
+  });
+
   it("exports cue and transition timestamps in milliseconds", () => {
     const exported = generateSeratoCueExport(session, "2026-01-01T00:00:00.000Z");
 
