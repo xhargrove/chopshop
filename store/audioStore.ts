@@ -11,12 +11,14 @@ import {
   DEFAULT_AUDIO_ZOOM,
   DEFAULT_BEAT_OFFSET_SECONDS,
   DEFAULT_STEM_MODEL,
+  DEFAULT_TRANSITION_BEATS,
   MAX_BPM,
   MAX_HOTKEY_CUE_POINTS,
   MIN_BPM,
   VALID_CAMELOT_VALUES,
 } from "@/lib/constants";
-import type { AudioFile, AudioFormat, AudioSession, CuePoint, EditorSettings, MetadataSource, WaveformRegion } from "@/types/audio";
+import { registerUndoSessionAccessors, useUndoStore } from "@/store/undoStore";
+import type { AcapellaSwapCommit, AudioFile, AudioFormat, AudioSession, BleepMode, BleepRegion, CuePoint, EditorSettings, EditorTab, MetadataSource, TransitionCue, WaveformRegion } from "@/types/audio";
 
 export interface AudioStore {
   session: AudioSession | null;
@@ -35,6 +37,15 @@ export interface AudioStore {
   setBeatOffset: (offsetSeconds: number) => void;
   setBeatGridVisible: (visible: boolean) => void;
   setStemModel: (model: "2stems" | "4stems") => void;
+  setActiveTab: (tab: EditorTab) => void;
+  updateBleepRegions: (regions: BleepRegion[]) => void;
+  addBleepRegion: (start: number, end: number, mode: BleepMode) => void;
+  removeBleepRegion: (id: string) => void;
+  addTransitionCue: (position: number, type: TransitionCue["type"], windowSeconds?: number) => void;
+  removeTransitionCue: (id: string) => void;
+  commitAcapellaSwap: (commit: Omit<AcapellaSwapCommit, "id" | "committedAt">) => void;
+  clearAcapellaSwap: () => void;
+  replaceSession: (session: AudioSession) => void;
   resetBpmOverride: () => void;
   resetKeyOverride: () => void;
   addCuePoint: (position: number) => void;
@@ -52,6 +63,12 @@ const createInitialEditorSettings = (): EditorSettings => ({
 });
 
 const roundBpm = (bpm: number): number => Number(Math.min(Math.max(bpm, MIN_BPM), MAX_BPM).toFixed(2));
+
+const pushUndoSnapshot = (session: AudioSession | null, label: string): void => {
+  if (session) {
+    useUndoStore.getState().pushState(session, label);
+  }
+};
 
 const getAudioFormat = (fileName: string): AudioFormat => {
   const normalizedName = fileName.toLowerCase();
@@ -107,6 +124,7 @@ export const useAudioStore = create<AudioStore>()(
       const previousSession = get().session;
 
       revokeSessionUrl(previousSession);
+      useUndoStore.getState().clear();
 
       const audioFile: AudioFile = {
         id: nanoid(),
@@ -142,6 +160,7 @@ export const useAudioStore = create<AudioStore>()(
     },
     clearSession: (): void => {
       revokeSessionUrl(get().session);
+      useUndoStore.getState().clear();
 
       set((state) => {
         state.session = null;
@@ -149,6 +168,7 @@ export const useAudioStore = create<AudioStore>()(
       });
     },
     updateRegions: (regions: WaveformRegion[]): void => {
+      pushUndoSnapshot(get().session, "Update regions");
       set((state) => {
         if (state.session) {
           state.session.regions = regions;
@@ -156,6 +176,7 @@ export const useAudioStore = create<AudioStore>()(
       });
     },
     updateCuePoints: (cuePoints: CuePoint[]): void => {
+      pushUndoSnapshot(get().session, "Update cue points");
       set((state) => {
         if (state.session) {
           state.session.cuePoints = cuePoints;
@@ -185,6 +206,7 @@ export const useAudioStore = create<AudioStore>()(
       });
     },
     setFileBpm: (bpm: number | null): void => {
+      pushUndoSnapshot(get().session, "Set BPM");
       set((state) => {
         if (state.session) {
           state.session.file.bpm = bpm === null ? null : roundBpm(bpm);
@@ -193,6 +215,7 @@ export const useAudioStore = create<AudioStore>()(
       });
     },
     setBpm: (bpm: number, source: MetadataSource): void => {
+      pushUndoSnapshot(get().session, "Set BPM");
       set((state) => {
         if (!state.session) {
           return;
@@ -213,6 +236,7 @@ export const useAudioStore = create<AudioStore>()(
       });
     },
     setKey: (key: string, source: MetadataSource): void => {
+      pushUndoSnapshot(get().session, "Set key");
       set((state) => {
         if (!state.session || !VALID_CAMELOT_VALUES.has(key)) {
           return;
@@ -231,6 +255,7 @@ export const useAudioStore = create<AudioStore>()(
       });
     },
     setBeatOffset: (offsetSeconds: number): void => {
+      pushUndoSnapshot(get().session, "Set beat offset");
       set((state) => {
         if (state.session) {
           state.session.file.beatOffset = offsetSeconds;
@@ -247,7 +272,86 @@ export const useAudioStore = create<AudioStore>()(
         state.editorSettings.stemModel = model;
       });
     },
+    setActiveTab: (tab: EditorTab): void => {
+      set((state) => {
+        state.editorSettings.activeTab = tab;
+      });
+    },
+    updateBleepRegions: (regions: BleepRegion[]): void => {
+      pushUndoSnapshot(get().session, "Update clean edit regions");
+      set((state) => {
+        if (state.session) {
+          state.session.bleepRegions = regions;
+        }
+      });
+    },
+    addBleepRegion: (start: number, end: number, mode: BleepMode): void => {
+      pushUndoSnapshot(get().session, "Add clean edit region");
+      set((state) => {
+        if (state.session) {
+          state.session.bleepRegions.push({ id: nanoid(), start, end, mode, label: `${mode} ${state.session.bleepRegions.length + 1}` });
+        }
+      });
+    },
+    removeBleepRegion: (id: string): void => {
+      pushUndoSnapshot(get().session, "Remove clean edit region");
+      set((state) => {
+        if (state.session) {
+          state.session.bleepRegions = state.session.bleepRegions.filter((region) => region.id !== id);
+        }
+      });
+    },
+    addTransitionCue: (position: number, type: TransitionCue["type"], windowSeconds?: number): void => {
+      pushUndoSnapshot(get().session, "Add transition cue");
+      set((state) => {
+        if (!state.session) {
+          return;
+        }
+
+        const bpm = state.session.file.bpm ?? MIN_BPM;
+        const windowLength = windowSeconds ?? (DEFAULT_TRANSITION_BEATS * 60) / bpm;
+        state.session.transitionCues.push({
+          id: nanoid(),
+          position,
+          windowSeconds: windowLength,
+          inPoint: Math.max(position - windowLength / 2, 0),
+          outPoint: Math.min(position + windowLength / 2, state.session.file.durationSeconds),
+          type,
+          label: type === "mix-in" ? "Mix In" : "Mix Out",
+        });
+      });
+    },
+    removeTransitionCue: (id: string): void => {
+      pushUndoSnapshot(get().session, "Remove transition cue");
+      set((state) => {
+        if (state.session) {
+          state.session.transitionCues = state.session.transitionCues.filter((cue) => cue.id !== id);
+        }
+      });
+    },
+    commitAcapellaSwap: (commit: Omit<AcapellaSwapCommit, "id" | "committedAt">): void => {
+      pushUndoSnapshot(get().session, "Commit acapella swap");
+      set((state) => {
+        if (state.session) {
+          state.session.acapellaSwap = { ...commit, id: nanoid(), committedAt: Date.now() };
+        }
+      });
+    },
+    clearAcapellaSwap: (): void => {
+      pushUndoSnapshot(get().session, "Clear acapella swap");
+      set((state) => {
+        if (state.session) {
+          state.session.acapellaSwap = null;
+        }
+      });
+    },
+    replaceSession: (session: AudioSession): void => {
+      set((state) => {
+        state.session = session;
+      });
+    },
     resetBpmOverride: (): void => {
+      pushUndoSnapshot(get().session, "Reset BPM override");
       set((state) => {
         if (state.session) {
           state.session.file.bpm = state.session.autoBpm;
@@ -256,6 +360,7 @@ export const useAudioStore = create<AudioStore>()(
       });
     },
     resetKeyOverride: (): void => {
+      pushUndoSnapshot(get().session, "Reset key override");
       set((state) => {
         if (state.session) {
           state.session.file.key = state.session.autoKey;
@@ -264,6 +369,7 @@ export const useAudioStore = create<AudioStore>()(
       });
     },
     addCuePoint: (position: number): void => {
+      pushUndoSnapshot(get().session, "Add cue point");
       set((state) => {
         if (!state.session) {
           return;
@@ -283,6 +389,7 @@ export const useAudioStore = create<AudioStore>()(
       });
     },
     removeCuePoint: (id: string): void => {
+      pushUndoSnapshot(get().session, "Remove cue point");
       set((state) => {
         if (!state.session) {
           return;
@@ -296,6 +403,7 @@ export const useAudioStore = create<AudioStore>()(
       });
     },
     updateCuePoint: (id: string, updates: Partial<CuePoint>): void => {
+      pushUndoSnapshot(get().session, "Update cue point");
       set((state) => {
         const cuePoint = state.session?.cuePoints.find((candidate) => candidate.id === id);
 
@@ -306,3 +414,8 @@ export const useAudioStore = create<AudioStore>()(
     },
   })),
 );
+
+registerUndoSessionAccessors({
+  getSession: () => useAudioStore.getState().session,
+  applySession: (session) => useAudioStore.getState().replaceSession(session),
+});
